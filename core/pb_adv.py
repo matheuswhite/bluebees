@@ -4,6 +4,7 @@ import math
 from core.shared_id_pool import SharedIDPool
 from core.provisioning_link import *
 from core.event_system import Event, Subscriber
+from core.socket import Socket
 
 
 class InvalidParameterType(Exception):
@@ -17,8 +18,10 @@ class InvalidParameterType(Exception):
 class PBADVPDU:
 
     def __init__(self, link_id, transaction_number, payload):
-        self.link_id = int(link_id).to_bytes(4, byteorder='big')
-        self.transaction_number = int(transaction_number).to_bytes(1, byteorder='big')
+        if not isinstance(link_id, bytes):
+            self.link_id = int(link_id).to_bytes(4, byteorder='big')
+        if not isinstance(transaction_number, bytes):
+            self.transaction_number = int(transaction_number).to_bytes(1, byteorder='big')
         self.payload = bytes(payload)
 
     def __str__(self):
@@ -28,19 +31,19 @@ class PBADVPDU:
         return self.link_id + self.transaction_number + self.payload
 
 
-# TODO: Create a method to handle an incoming close message
 # TODO: Create a method to wait the ack response. Send close case not ack has been arise
 class PBADV(Subscriber):
 
-    def __init__(self, write_cb, new_pbadvpdu_event):
-        self.write_cb = write_cb
-        self.new_pbadvpdu_event = new_pbadvpdu_event
+    def __init__(self, socket: Socket):
+        super().__init__()
+
+        self.socket = socket
         self.new_gppdu_event = Event()
         self.link_ids = SharedIDPool(0xFFFFFFFF)
         self.links = []
         self.MTU_SIZE = 24
 
-        self.subscribe(self.new_pbadvpdu_event)
+        self.subscribe(self.socket.new_data_event)
 
     def open(self, device_uuid: bytes):
         # Creating a new link
@@ -56,7 +59,7 @@ class PBADV(Subscriber):
         # Creating the Link Open PDU. This PDU will be send to device with uuid specified in method's parameter
         pdu = PBADVPDU(link.get_link_id(), link.get_a_transaction_number(), link_open_payload)
         # Sending Link Open PDU
-        self.write_cb(pdu.to_bytes())
+        self.socket.write(pdu.to_bytes())
         # Return the link created
         return link
 
@@ -71,16 +74,15 @@ class PBADV(Subscriber):
         # Creating the Link Close PDU. This PDU will be send to device with uuid specified on link
         pdu = PBADVPDU(link.get_link_id(), link.get_a_transaction_number(), link_close_payload)
         # Sending Link Close PDU
-        self.write_cb(pdu.to_bytes())
+        self.socket.write(pdu.to_bytes())
 
     def write(self, payload: bytes, link: ProvisioningLink):
         for segment in self.segment_payload(payload):
             pdu = PBADVPDU(link.get_link_id(), link.get_a_transaction_number(), segment)
-            self.write_cb(pdu.to_bytes())
+            self.socket.write(pdu.to_bytes())
 
-    # TODO: Test it
     def notify(self, data: bytes):
-        pdu = PBADVPDU(link_id=data[:4], transaction_number=data[5:6], payload=data[6:])
+        pdu = PBADVPDU(link_id=data[:4], transaction_number=data[4:5], payload=data[5:])
 
         if pdu.payload[0] == LINK_CLOSE:
             self.handle_incoming_link_close(pdu)
@@ -103,7 +105,6 @@ class PBADV(Subscriber):
 
         raise NotImplemented
 
-    # TODO: Test it
     def remove_link_by_link_id(self, link_id):
         p_link = None
         for link in self.links:

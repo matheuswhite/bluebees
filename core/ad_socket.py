@@ -3,6 +3,7 @@ from time import gmtime, strftime
 from bluepy.btle import Scanner, DefaultDelegate
 from threading import Lock
 from core.ad_packet_buffer import ADPacket, ADData, ADPacketBuffer
+from core.event_system import Event
 
 
 class ADSocket(DefaultDelegate):
@@ -36,6 +37,7 @@ class ADSocket(DefaultDelegate):
         self.scanner = Scanner().withDelegate(self)
         self.debug = debug
         self.name = name
+        self.new_pbadvpdu_event = Event()
 
     def enable_debug(self):
         self.debug = True

@@ -4,6 +4,7 @@ The subscriber can subscribe, for now, in one event
 """
 # TODO: Increase the number of event subscriptions allowed for Subscriber
 
+
 class Event:
 
     def __init__(self):
