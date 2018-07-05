@@ -14,7 +14,7 @@ class TestTransactionNumberIterator(TestCase):
         expected = list(range(0x00, 0x80))
         expected.append(0x00)
 
-        self.assertEqual(result, expected)
+        self.assertEqual(expected, result)
 
     def test_device_mode(self):
         tr_number = TransactionNumberIterator(is_provisioner=False)
@@ -26,4 +26,4 @@ class TestTransactionNumberIterator(TestCase):
         expected = list(range(0x80, 0x100))
         expected.append(0x80)
 
-        self.assertEqual(result, expected)
+        self.assertEqual(expected, result)

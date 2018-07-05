@@ -6,12 +6,22 @@ This class represent a link. So, it must be created in every link establishment 
 # PROVISIONING_BEARER_CONTROL_CODE = 0b11
 # PROVISIONING_BEARER_CONTROL_MASK = 0x03
 # BEARER_OPCODE_MASK = 0xFC
-LINK_OPEN = 0x00
-LINK_ACK = 0x01
-LINK_CLOSE = 0x02
+LINK_OPEN = 0x03
+LINK_ACK = 0x07
+LINK_CLOSE = 0x0B
+
+LINK_CLOSE_SUCESS = 0x00
+LINK_CLOSE_TIMEOUT = 0x01
+LINK_CLOSE_FAIL = 0x02
 
 
 class DuplicateUUIDError(Exception):
+
+    def __init__(self, link):
+        self.link = link
+
+
+class LinkNotFoundError(Exception):
 
     def __init__(self, link):
         self.link = link

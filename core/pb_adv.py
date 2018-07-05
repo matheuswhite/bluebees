@@ -28,6 +28,7 @@ class PBADVPDU:
 
 
 # TODO: Create a method to handle an incoming close message
+# TODO: Create a method to wait the ack response. Send close case not ack has been arise
 class PBADV:
 
     def __init__(self, write_cb, read_cb):
@@ -37,28 +38,35 @@ class PBADV:
         self.links = []
         self.MTU_SIZE = 24
 
-    # TODO: Comment the code
     def open(self, device_uuid: bytes):
+        # Creating a new link
         link = ProvisioningLink(self.link_ids.get_new_id(), device_uuid, is_provisioner=True)
+        # Check if this link already is in use. This check is made by uuid
         if link in self.links:
             raise DuplicateUUIDError(link)
+        # If the link is not duplicate, then store it for further checks
         self.links.append(link)
 
+        # Creating the Link Open payload
         link_open_payload = int(LINK_OPEN).to_bytes(1, 'big') + link.get_device_uuid()
+        # Creating the Link Open PDU. This PDU will be send to device with uuid specified in method's parameter
         pdu = PBADVPDU(link.get_link_id(), link.get_a_transaction_number(), link_open_payload)
+        # Sending Link Open PDU
         self.write_cb(pdu.to_bytes())
+        # Return the link created
+        return link
 
-    # TODO: Comment the code
-    def close(self, device_uuid: bytes, reason: int):
-        p_link = ProvisioningLink(-1, device_uuid, True)
-        for link in self.links:
-            if link == p_link:
-                p_link = link
-                break
-        self.links.remove(p_link)
+    def close(self, link: ProvisioningLink, reason: int):
+        # If the link isn't stored, then raise a exception
+        if link not in self.links:
+            raise LinkNotFoundError(link)
+        self.links.remove(link)
 
+        # Creating the Link Close payload
         link_close_payload = int(LINK_CLOSE).to_bytes(1, 'big') + int(reason).to_bytes(1, 'big')
-        pdu = PBADVPDU(p_link.get_link_id(), p_link.get_a_transaction_number(), link_close_payload)
+        # Creating the Link Close PDU. This PDU will be send to device with uuid specified on link
+        pdu = PBADVPDU(link.get_link_id(), link.get_a_transaction_number(), link_close_payload)
+        # Sending Link Close PDU
         self.write_cb(pdu.to_bytes())
 
     def write(self, payload: bytes, link: ProvisioningLink):

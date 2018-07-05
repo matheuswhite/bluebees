@@ -4,7 +4,6 @@ import random
 
 
 # TODO: Change list for other data structure
-# TODO: Add a unit test to this class
 class SharedIDPool:
 
     def __init__(self, max_size):
@@ -23,6 +22,6 @@ class SharedIDPool:
         while id_ in self.dirty_ids:
             id_ = random.randrange(0, self.max_size)
 
-        self.dirty_ids.append()
+        self.dirty_ids.append(id_)
         self.lock.release()
         return id_
