@@ -5,7 +5,7 @@ from core.provisioning_bearer import ProvisioningBearerSocket
 from random import randrange
 from core.transaction_number import TransactionNumber
 
-MTU_SIZE = 24
+ADV_MTU_SIZE = 24
 LINK_CLOSE_SUCESS = 0x00
 LINK_CLOSE_TIMEOUT = 0x01
 LINK_CLOSE_FAIL = 0x02
@@ -26,7 +26,6 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
         self.__transaction_number = None
         self.__close_reason = None
 
-    # TODO: Test it
     @staticmethod
     def __get_link_id():
         return randrange(0, 0xFFFFFFFF)
@@ -35,12 +34,12 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
     def __segment_payload(payload):
         payload_length = len(payload)
 
-        if payload_length > MTU_SIZE:
-            last_seg_number = int(ceil(payload_length / MTU_SIZE))
+        if payload_length > ADV_MTU_SIZE:
+            last_seg_number = int(ceil(payload_length / ADV_MTU_SIZE))
 
             for x in range(0, last_seg_number):
-                yield payload[:MTU_SIZE]
-                payload = payload[MTU_SIZE:]
+                yield payload[:ADV_MTU_SIZE]
+                payload = payload[ADV_MTU_SIZE:]
         else:
             yield payload
 
