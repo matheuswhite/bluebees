@@ -87,9 +87,6 @@ producer = AProducer()
 consumer1 = ALayer1(producer, '1')
 consumer2 = ALayer1(producer, '2')
 
-print('consumer1 - {}'.format(consumer1.mark))
-print('consumer2 - {}'.format(consumer2.mark))
-
 tasks = [Task(consumer1.read()), Task(consumer2.read())]
 
 loop = asyncio.get_event_loop()
