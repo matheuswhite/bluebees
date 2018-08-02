@@ -63,7 +63,7 @@ class GenericProvisioningSocket(Socket):
         else:
             raise NotImplemented
 
-    async def read(self):
+    def read(self):
         super().read()
 
     def close(self):

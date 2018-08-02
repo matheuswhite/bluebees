@@ -3,12 +3,19 @@ from math import ceil
 from core.dongle_socket import *
 from core.provisioning_bearer import ProvisioningBearerSocket
 from random import randrange
+from threading import Timer
 from core.transaction_number import TransactionNumber
 
 ADV_MTU_SIZE = 24
-LINK_CLOSE_SUCESS = 0x00
-LINK_CLOSE_TIMEOUT = 0x01
-LINK_CLOSE_FAIL = 0x02
+LINK_CLOSE_SUCESS = b'\x00'
+LINK_CLOSE_TIMEOUT = b'\x01'
+LINK_CLOSE_FAIL = b'\x02'
+
+
+class CloseLinkFromDeviceError(Exception):
+
+    def __init__(self, reason):
+        self.reason = reason
 
 
 class ProvisioningBearerADVPDU(PDU):
@@ -24,7 +31,9 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
 
         self.__link_id = None
         self.__transaction_number = None
-        self.__close_reason = None
+        self.__close_reason = LINK_CLOSE_SUCESS
+        self.__timer = Timer(30.0, self.__check_incoming_ack)
+        self.__has_ack = False
 
     @staticmethod
     def __get_link_id():
@@ -43,6 +52,10 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
         else:
             yield payload
 
+    def __check_incoming_ack(self):
+        if not self.__has_ack:
+            self.__close_reason = LINK_CLOSE_TIMEOUT
+
     def open(self):
         super().open()
 
@@ -57,10 +70,12 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
 
             socket.write(dongle_pdu)
 
-            # TODO: Start a timer. If this time reach to X seconds, then send a close with timeout
+            self.__timer.start()
 
     def close(self):
         super().close()
+
+        self.__timer.cancel()
 
         with DongleSocket(self._dongle_port, 115200) as socket:
             pbadv_pdu = ProvisioningBearerADVPDU(self.__link_id, next(self.__transaction_number),
@@ -68,8 +83,6 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
             dongle_pdu = DonglePDU(prov_bearer=PB_ADV, payload=pbadv_pdu.value)
 
             socket.write(dongle_pdu)
-
-            # TODO: Stop all timers
 
     def write(self, payload: PDU):
         super().write(payload)
@@ -83,8 +96,24 @@ class ProvisioningBearerADVSocket(ProvisioningBearerSocket):
 
                 socket.write(dongle_pdu)
 
-    # TODO: Implement it
-    async def read(self):
+    def read(self):
         super().read()
 
-        raise NotImplemented
+        with DongleSocket(self._dongle_port, 115200) as socket:
+            pdu = socket.read()
+            payload = pdu[5:]
+
+            # Provisioning Bearer Control
+            if payload[0:1] & b'\x03' == b'\x03':
+                bearer_opcode = payload[0:1] & b'\b11111100'
+
+                # if a link ack msg arrive, then stop timer
+                if bearer_opcode == b'\x01':
+                    self.__timer.cancel()
+
+                # if a link close arrive, raise a exception with the reason ('close the link')
+                if bearer_opcode == b'\x02':
+                    raise CloseLinkFromDeviceError(reason=payload[1:2])
+
+            # remove the header of this layer and then send the payload to next layer
+            return payload

@@ -15,7 +15,7 @@ class ProvisioningBearerSocket(Socket):
     def write(self, payload: PDU):
         super().write(payload)
 
-    async def read(self):
+    def read(self):
         super().read()
 
     def close(self):

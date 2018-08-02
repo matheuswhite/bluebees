@@ -23,7 +23,6 @@ class Address:
     def value(self):
         return self.__value
 
-    # TODO: Move it to a class
     @classmethod
     def SerialPort(cls, value: str):
         return cls(value)

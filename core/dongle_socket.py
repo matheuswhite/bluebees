@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 from core.socket import Socket, Address, PDU
 from serial import Serial
+from core.utils import threaded
 
+# TODO: Review the ADV max packet size
 ADV_MAX_PACKET_SIZE = 66
 PB_ADV = 1
 GATT_ADV = 2
@@ -31,11 +33,12 @@ class DongleSocket(Socket):
 
     def write(self, payload: DonglePDU):
         super().write(payload)
-        self.__serial.write(payload)
+        self.__serial.write(payload.value)
 
-    async def read(self):
+    def read(self):
         super().read()
-        return await self.__serial.read(self.__max_read_size)
+        payload = self.__serial.read(self.__max_read_size)
+        return payload[2:]
 
     def close(self):
         super().close()
