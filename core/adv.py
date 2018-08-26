@@ -10,7 +10,7 @@ class AdvDriver:
         self.__serial = Serial()
 
     @staticmethod
-    def bytes_to_hexstr(data: bytes, endianness='big'):
+    def __bytes_to_hexstr(data: bytes, endianness='big'):
         hexstr = ''
         for x in range(0, len(data)):
             if endianness == 'big':
@@ -24,7 +24,7 @@ class AdvDriver:
         self.__serial.baudrate = s.baud_rate
         self.__serial.port = s.port
 
-        payload = self.bytes_to_hexstr(payload, endianness)
+        payload = self.__bytes_to_hexstr(payload, endianness)
         pdu = '@{}:{}\n'.format(type_, payload)
 
         self.__serial.open()

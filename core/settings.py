@@ -50,3 +50,14 @@ class AdvSettings:
         else:
             self.port = ''
         self.baud_rate = 115200
+
+
+@borg
+class GProvSettings:
+
+    def __init__(self):
+        self.link_ack_timeout = 30
+        self.tr_ack_timeout = 30
+        self.min_delay = 20e-3
+        self.max_delay = 50e-3
+        self.delay_util_ack_check = 5

@@ -25,6 +25,7 @@ class PbAdv:
         else:
             yield payload
 
+    # TODO: Remove the segmentation of write on pb_adv layer. Add a check of payload length
     def write(self, link: Link, payload: bytes):
         for segment in self.__segment_payload(payload):
             pdu = link.link_id.to_bytes(4, 'big') + link.transaction_number.to_bytes(1, 'big') + segment
