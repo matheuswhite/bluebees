@@ -2,14 +2,7 @@
 from core.utils import threaded
 from serial import Serial
 from core.settings import AdvSettings
-from threading import Event, Lock
-
-
-class ReadHelper:
-
-    def __init__(self):
-        self.event = Event()
-        self.msg = None
+from threading import Lock
 
 
 class AdvDriver:
@@ -26,9 +19,6 @@ class AdvDriver:
         self.__serial.close()
 
         self.__lock = Lock()
-        self.__ready_events = []
-
-        self.__listen()
 
     @staticmethod
     def __bytes_to_hexstr(data: bytes, endianness='big'):
@@ -54,35 +44,25 @@ class AdvDriver:
         self.__serial.close()
         self.__lock.release()
 
-    @threaded
-    def __listen(self):
-        while True:
-            line = '!'
-            while line[0] != '@':
-                self.__lock.acquire()
-                s = AdvSettings()
-                self.__serial.baudrate = s.baud_rate
-                self.__serial.port = s.port
-                self.__serial.open()
-                line = self.__serial.readline()
-                self.__serial.close()
-                self.__lock.release()
-            line = line[1:-2]
-            type_, payload = line.split(' ')
-            for h in self.__ready_events:
-                h.msg = (type_, payload)
-                h.event.set()
-
     def read(self, type_expected):
-        helper = ReadHelper()
-        self.__ready_events.append(helper)
+        line = '!'
 
-        helper.event.wait()
+        while line[0] != '@':
+            self.__lock.acquire()
+            s = AdvSettings()
+            self.__serial.baudrate = s.baud_rate
+            self.__serial.port = s.port
+            self.__serial.open()
+            line = self.__serial.readline()
+            self.__serial.close()
+            self.__lock.release()
 
-        if type_expected != helper.msg[0]:
+        line = line[1:-2]
+        type_, payload = line.split(' ')
+        if type_expected != type_:
             raise Exception
 
-        return helper.msg[1]
+        return payload
 
     @threaded
     def read_in_background(self, type_expected, ready_callback):
