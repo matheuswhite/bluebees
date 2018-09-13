@@ -14,24 +14,24 @@ class AdvDriver:
         self.__serial.port = s.port
 
         self.__serial.open()
-        self.__serial.write('noprompt\r\n')
-        self.__serial.write('select bt_mesh\r\n')
+        self.__serial.write(b'noprompt\r\n')
+        self.__serial.write(b'select bt_mesh\r\n')
         self.__serial.close()
 
         self.__lock = Lock()
 
     @staticmethod
-    def __bytes_to_hexstr(data: bytes, endianness='big'):
+    def bytes_to_hexstr(data: bytes, endianness='big'):
         hexstr = ''
         for x in range(0, len(data)):
             if endianness == 'big':
                 hexstr += hex(data[x])[2:]
             else:
-                hexstr += hex(data[abs(x-len(data)-1)])[2:]
+                hexstr += hex(data[-x-1])[2:]
         return hexstr
 
     def write(self, payload: bytes, type_, xmit, duration, endianness='big'):
-        payload = self.__bytes_to_hexstr(payload, endianness)
+        payload = self.bytes_to_hexstr(payload, endianness)
         pdu = '@{} {} {} {}\r\n'.format(type_, xmit, duration, payload)
 
         self.__lock.acquire()

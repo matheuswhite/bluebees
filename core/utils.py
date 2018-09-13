@@ -15,19 +15,13 @@ def threaded(fn):
     return wrapper
 
 
-# Thanks to @berkerpeksag
-# Source: https://github.com/berkerpeksag/python-playground/blob/master/borg.py
-def borg(cls):
-    """A class decorator for Borg design pattern."""
-    cls._state = {}
-    _new = cls.__new__
+# Thanks to @yuvalpinter
+# Source: https://github.com/faif/python-patterns/blob/master/creational/borg.py
+class Borg(object):
+    __shared_state = {}
 
-    def wrapper(self, *args, **kwargs):
-        self.__dict__ = cls._state
-        _new(self, *args, **kwargs)
-
-    cls.__new__ = wrapper
-    return cls
+    def __init__(self):
+        self.__dict__ = self.__shared_state
 
 
 def check_none(value, case_none):

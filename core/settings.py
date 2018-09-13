@@ -1,12 +1,13 @@
 #!/usr/bin/python3
-from core.utils import borg
+from core.utils import Borg
 from platform import system
 
 
-@borg
-class GlobalSetting:
+class GlobalSetting(Borg):
 
     def __init__(self):
+        super().__init__()
+
         self.dongle_address = ''
         self.dongle_baudrate = 115200
         self.dongle_max_read_size = 66
@@ -29,17 +30,19 @@ class GlobalSetting:
         self.gprov_max_delay = 0.050
 
 
-@borg
-class PbAdvSettings:
+class PbAdvSettings(Borg):
 
     def __init__(self):
+        super().__init__()
+
         self.mtu_max_size = 24
 
 
-@borg
-class AdvSettings:
+class AdvSettings(Borg):
 
     def __init__(self):
+        super().__init__()
+
         if system() == 'Linux':
             self.port = '/dev/ttyACM0'
         elif system() == 'Windows':
@@ -52,10 +55,11 @@ class AdvSettings:
         self.baud_rate = 115200
 
 
-@borg
-class GProvSettings:
+class GProvSettings(Borg):
 
     def __init__(self):
+        super().__init__()
+
         self.link_ack_timeout = 30
         self.tr_ack_timeout = 30
         self.min_delay = 20e-3
