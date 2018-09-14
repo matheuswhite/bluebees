@@ -10,6 +10,7 @@ def threaded(fn):
     from threading import Thread"""
     def wrapper(*args, **kwargs):
         thread = Thread(target=fn, args=args, kwargs=kwargs)
+        thread.daemon = True
         thread.start()
         return thread
     return wrapper

@@ -9,22 +9,25 @@ class SerialTestHelper:
         self.serial = Serial(port, 115200)
         self.message_queue = []
         self.lock = RLock()
-
-        self.__listen()
+        self.serial_lock = RLock()
 
     @threaded
-    def __listen(self):
+    def listen(self):
         while True:
             self.__atomic_read()
 
     def __atomic_read(self):
-        while True:
-            with self.serial:
-                msg = self.serial.readline()
-            if msg[0] == '@':
-                with self.lock:
-                    self.message_queue.append(msg)
-                break
+        is_msg = False
+
+        while not is_msg:
+            with self.serial_lock:
+                with self.serial:
+                    msg = self.serial.readline()
+                    print(msg)
+                if msg[0] == '@':
+                    with self.lock:
+                        self.message_queue.append(msg)
+                    is_msg = True
 
     def pop_message(self, topic: str):
         msg = None
@@ -44,6 +47,12 @@ class SerialTestHelper:
                     del self.message_queue[x]
                     break
         return msg
+
+    def push_message(self, topic: str, payload: bytes):
+        msg = bytes(topic.encode('utf8')) + payload
+        with self.serial_lock:
+            with self.serial:
+                self.serial.write(msg)
 
     # usage
     #
