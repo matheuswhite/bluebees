@@ -53,6 +53,9 @@ class AdvSettings(Borg):
         else:
             self.port = ''
         self.baud_rate = 115200
+        self.prov_xmit_duration = 200
+        self.message_xmit_duration = 200
+        self.beacon_xmit_duration = 200
 
 
 class GProvSettings(Borg):

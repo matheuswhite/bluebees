@@ -1,13 +1,14 @@
 #!/usr/bin/python3
-from core.utils import borg
+from core.utils import Borg
 from random import randint
 from core.address import UUID
 
 
-@borg
-class Roulette:
+class Roulette(Borg):
 
     def __init__(self):
+        super().__init__()
+
         self.roulette = []
 
     def new_link_id(self):
