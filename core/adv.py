@@ -15,12 +15,8 @@ class AdvDriver:
         self.__serial.port = s.port
 
         self.__serial.open()
-        for x in range(3):
-            self.__serial.readline()
-        self.__serial.write(b'noprompt\r\n')
-        self.__serial.readline()
-        self.__serial.write(b'select bt_mesh\r\n')
-        self.__serial.readline()
+        self.__atomic_write(b'noprompt\r\n')
+        self.__atomic_write(b'select bt_mesh\r\n')
         self.__serial.close()
 
         self.__lock = Lock()
@@ -35,6 +31,10 @@ class AdvDriver:
                 hexstr += hex(data[-x-1])[2:]
         return hexstr
 
+    def __atomic_write(self, payload: bytes):
+        self.__serial.write(payload)
+        self.__serial.flush()
+
     def write(self, payload: bytes, type_, xmit, duration, endianness='big'):
         payload = self.bytes_to_hexstr(payload, endianness)
         pdu = bytes('@{} {} {} {}\r\n'.format(type_, xmit, duration, payload).encode('utf8'))
@@ -44,10 +44,11 @@ class AdvDriver:
         self.__serial.baudrate = s.baud_rate
         self.__serial.port = s.port
         self.__serial.open()
-        self.__serial.write(pdu)
-        self.__serial.readline()
-        sleep(((duration+duration/2)/1000) * (xmit+1))
+        self.__atomic_write(pdu)
         self.__serial.close()
+        durationn = (duration+duration/2)
+        # durationn = duration*3
+        sleep((durationn/1000) * (xmit+1))
         self.__lock.release()
 
     def read(self, type_expected):
