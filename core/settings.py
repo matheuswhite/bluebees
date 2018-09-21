@@ -40,22 +40,25 @@ class PbAdvSettings(Borg):
 
 class AdvSettings(Borg):
 
+    port = '/dev/ttyACM0'
+    baud_rate = 115200
+
     def __init__(self):
         super().__init__()
 
-        if system() == 'Linux':
-            self.port = '/dev/ttyACM0'
-        elif system() == 'Windows':
-            self.port = 'COM3'
-        # Mac
-        elif system() == 'Darwin':
-            self.port = ''
-        else:
-            self.port = ''
-        self.baud_rate = 115200
-        self.prov_xmit_duration = 200
-        self.message_xmit_duration = 200
-        self.beacon_xmit_duration = 200
+        # if system() == 'Linux':
+        #     self.port = '/dev/ttyACM0'
+        # elif system() == 'Windows':
+        #     self.port = 'COM3'
+        # # Mac
+        # elif system() == 'Darwin':
+        #     self.port = ''
+        # else:
+        #     self.port = ''
+        # self.baud_rate = 115200
+        # self.prov_xmit_duration = 200
+        # self.message_xmit_duration = 200
+        # self.beacon_xmit_duration = 200
 
 
 class GProvSettings(Borg):

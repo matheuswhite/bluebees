@@ -5,14 +5,15 @@ from core.settings import AdvSettings
 from threading import Lock
 from time import sleep
 
+ADV_INT_DEFAULT_MS = 100
+MESH_SCAN_WINDOW_MS = 10
 
 class AdvDriver:
 
-    def __init__(self):
-        s = AdvSettings()
+    def __init__(self, port, baudrate):
         self.__serial = Serial()
-        self.__serial.baudrate = s.baud_rate
-        self.__serial.port = s.port
+        self.__serial.baudrate = baudrate
+        self.__serial.port = port
 
         self.__serial.open()
         self.__atomic_write(b'noprompt\r\n')
@@ -35,20 +36,28 @@ class AdvDriver:
         self.__serial.write(payload)
         self.__serial.flush()
 
-    def write(self, payload: bytes, type_, xmit, duration, endianness='big'):
+    def __write_delay(self, xmit, int_ms):
+        adv_int = max(ADV_INT_DEFAULT_MS, (((int_ms >> 3) + 1) * 10))
+        duration = MESH_SCAN_WINDOW_MS + (((xmit & 0x07) + 1) * (adv_int + 10))
+        '''
+        Incrementei a duração pois havia uma perda de 5% dos pacotes recebidos
+        Caso o usuario queira aumentar a velocidade de escrita das mensagens, 
+        diminuir a variável 'duration'
+        
+        Nova perda de pacotes ≃ 1%
+        '''
+        duration += duration/2
+        sleep(duration/1000.0)
+
+    def write(self, payload: bytes, type_, xmit, int_ms, endianness='big'):
         payload = self.bytes_to_hexstr(payload, endianness)
-        pdu = bytes('@{} {} {} {}\r\n'.format(type_, xmit, duration, payload).encode('utf8'))
+        pdu = bytes('@{} {} {} {}\r\n'.format(type_, xmit, int_ms, payload).encode('utf8'))
 
         self.__lock.acquire()
-        s = AdvSettings()
-        self.__serial.baudrate = s.baud_rate
-        self.__serial.port = s.port
         self.__serial.open()
         self.__atomic_write(pdu)
         self.__serial.close()
-        durationn = (duration+duration/2)
-        # durationn = duration*3
-        sleep((durationn/1000) * (xmit+1))
+        self.__write_delay(xmit, int_ms)
         self.__lock.release()
 
     def read(self, type_expected):
@@ -56,20 +65,19 @@ class AdvDriver:
 
         while line[0] != '@':
             self.__lock.acquire()
-            s = AdvSettings()
-            self.__serial.baudrate = s.baud_rate
-            self.__serial.port = s.port
             self.__serial.open()
             line = self.__serial.readline()
+            line = line.decode('utf-8')
+            # print(line)
             self.__serial.close()
             self.__lock.release()
 
         line = line[1:-2]
-        type_, payload = line.split(' ')
+        type_, payload, addr = line.split(' ')
         if type_expected != type_:
             raise Exception
 
-        return payload
+        return payload, addr
 
     @threaded
     def read_in_background(self, type_expected, ready_callback):
