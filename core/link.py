@@ -1,10 +1,9 @@
 #!/usr/bin/python3
-from core.utils import Borg
 from random import randint
-from core.address import UUID
+from core.utils import HandSide
 
 
-class Roulette(Borg):
+class Roulette:
 
     def __init__(self):
         super().__init__()
@@ -22,14 +21,21 @@ class Roulette(Borg):
         return id
 
 
+_roulette = Roulette()
+
+
 class Link:
 
-    def __init__(self, device_uuid: UUID):
+    def __init__(self, device_uuid: bytes, handside=HandSide.Provisioner):
         self.__device_uuid = device_uuid
-        self.__link_id = Roulette().new_link_id()
-        self.__transaction_number = 0x00
+        self.__link_id = _roulette.new_link_id()
+        self.__handside = handside
         self.is_open = False
         self.close_reason = 0x00
+        if self.__handside == HandSide.Provisioner:
+            self.__transaction_number = 0x00
+        elif self.__handside == HandSide.Device:
+            self.__transaction_number = 0x80
 
     @property
     def device_uuid(self):
@@ -45,5 +51,8 @@ class Link:
 
     def increment_transaction_number(self):
         self.__transaction_number += 1
-        self.__transaction_number %= 0x80
+        if self.__handside == HandSide.Provisioner:
+            self.__transaction_number %= 0x80
+        elif self.__handside == HandSide.Device:
+            self.__transaction_number = (self.__transaction_number % 0x80) + 0x80
         return self.__transaction_number

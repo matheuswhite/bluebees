@@ -1,6 +1,5 @@
 import base64
 from enum import Enum
-
 from core.buffer import Buffer
 from core.link import Link
 
@@ -188,3 +187,20 @@ class GProvMessage(Message):
         else:
             raise Exception('Bearer Op code Unknown')
 
+
+class ProvMessage(Message):
+
+    def __init__(self):
+        super().__init__()
+
+    def encode_msg(self, type_, parameters: bytes):
+        first_byte = 0x3F & type_
+        self.header.push_u8(first_byte)
+
+        self.payload.push_be(parameters)
+
+    def decode_msg(self, buffer: Buffer):
+        type_ = buffer.pull_u8()
+        parameters = buffer.buffer
+
+        return type_, parameters

@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+from enum import Enum
 from threading import Thread
 
 
@@ -16,13 +17,9 @@ def threaded(fn):
     return wrapper
 
 
-# Thanks to @yuvalpinter
-# Source: https://github.com/faif/python-patterns/blob/master/creational/borg.py
-class Borg(object):
-    __shared_state = {}
-
-    def __init__(self):
-        self.__dict__ = self.__shared_state
+class HandSide(Enum):
+    Provisioner = 0
+    Device = 1
 
 
 def check_none(value, case_none):
