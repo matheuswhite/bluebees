@@ -16,7 +16,8 @@ class Message:
     def encode_msg(self, **kwargs):
         pass
 
-    def decode_msg(self, buffer: Buffer):
+    @staticmethod
+    def decode_msg(buffer: Buffer):
         pass
 
 
@@ -46,26 +47,32 @@ class DongleMessage(Message):
         self.payload.push_be(content_b64)
         self.payload.push_u8(ord('\n'))
 
-    def decode_msg(self, buffer: Buffer):
+    @staticmethod
+    def decode_msg(buffer: Buffer):
         at_symbol = buffer.pull_u8()
         if at_symbol != b'@':
             raise Exception('Dongle messages must start with @ symbol')
 
-        type_ = buffer.pull_be16()
-        type_ += buffer.pull_be16()
+        type_ = buffer.pull_be(4)
         if type_ != b'prov':
             raise Exception('This class only handle prov messages')
 
         # space
-        _ = buffer.pull_be16()
+        _ = buffer.pull_u8()
 
         content_b64 = b''
         byte = buffer.pull_u8()
-        while byte != b'\n':
+        while byte != b' ':
             content_b64 += byte
             byte = buffer.pull_u8()
 
-        return base64.decodebytes(content_b64)
+        address = b''
+        byte = buffer.pull_u8()
+        while byte != b'\n':
+            address += byte
+            byte = buffer.pull_u8()
+
+        return base64.decodebytes(content_b64), address
 
 
 class PbAdvMessage(Message):
