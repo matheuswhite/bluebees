@@ -2,6 +2,7 @@ import base64
 from enum import Enum
 from core.buffer import Buffer
 from core.link import Link
+from dataclasses import dataclass
 
 
 class Message:
@@ -32,47 +33,6 @@ class GProvMessageType(Enum):
     ACK = 1
     CONTINUATION = 2
     BEARER_CONTROL = 3
-
-
-class DongleMessage(Message):
-
-    def __init__(self):
-        super().__init__()
-
-    def encode_msg(self, xmit, int_ms, content: bytes):
-        header = bytes('@prov {} {}'.format(xmit, int_ms))
-        self.header.push_be(header)
-
-        content_b64 = base64.encodebytes(content)
-        self.payload.push_be(content_b64)
-        self.payload.push_u8(ord('\n'))
-
-    @staticmethod
-    def decode_msg(buffer: Buffer):
-        at_symbol = buffer.pull_u8()
-        if at_symbol != b'@':
-            raise Exception('Dongle messages must start with @ symbol')
-
-        type_ = buffer.pull_be(4)
-        if type_ != b'prov':
-            raise Exception('This class only handle prov messages')
-
-        # space
-        _ = buffer.pull_u8()
-
-        content_b64 = b''
-        byte = buffer.pull_u8()
-        while byte != b' ':
-            content_b64 += byte
-            byte = buffer.pull_u8()
-
-        address = b''
-        byte = buffer.pull_u8()
-        while byte != b'\n':
-            address += byte
-            byte = buffer.pull_u8()
-
-        return base64.decodebytes(content_b64), address
 
 
 class PbAdvMessage(Message):
