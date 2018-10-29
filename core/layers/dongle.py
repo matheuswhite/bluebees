@@ -3,7 +3,6 @@ from core.utils import threaded
 from time import sleep
 from serial import Serial
 from core.buffer import Buffer
-from core.message import Message
 from dataclasses import dataclass
 import base64
 
@@ -15,44 +14,30 @@ class DongleData:
     address: bytes
 
 
-class DongleMessage(Message):
+def decode_dongle_message(buffer: Buffer):
+    at_symbol = buffer.pull_u8()
+    if at_symbol != b'@':
+        raise Exception('Dongle messages must start with @ symbol')
 
-    def __init__(self):
-        super().__init__()
-
-    def encode_msg(self, xmit, int_ms, content: bytes):
-        header = bytes('@prov {} {}'.format(xmit, int_ms))
-        self.header.push_be(header)
-
-        content_b64 = base64.encodebytes(content)
-        self.payload.push_be(content_b64)
-        self.payload.push_u8(ord('\n'))
-
-    @staticmethod
-    def decode_msg(buffer: Buffer):
-        at_symbol = buffer.pull_u8()
-        if at_symbol != b'@':
-            raise Exception('Dongle messages must start with @ symbol')
-
-        type_ = b''
+    type_ = b''
+    byte = buffer.pull_u8()
+    while byte != b' ':
+        type_ += byte
         byte = buffer.pull_u8()
-        while byte != b' ':
-            type_ += byte
-            byte = buffer.pull_u8()
 
-        content_b64 = b''
+    content_b64 = b''
+    byte = buffer.pull_u8()
+    while byte != b' ':
+        content_b64 += byte
         byte = buffer.pull_u8()
-        while byte != b' ':
-            content_b64 += byte
-            byte = buffer.pull_u8()
 
-        address = b''
+    address = b''
+    byte = buffer.pull_u8()
+    while byte != b'\n':
+        address += byte
         byte = buffer.pull_u8()
-        while byte != b'\n':
-            address += byte
-            byte = buffer.pull_u8()
 
-        return DongleData(str(type_), base64.decodebytes(content_b64), address)
+    return DongleData(str(type_), base64.decodebytes(content_b64), address)
 
 
 class DongleDriver:
@@ -66,8 +51,10 @@ class DongleDriver:
 
         self.__dongle_communication_task_en = False
 
-    def send(self, dongle_msg: DongleMessage):
-        self.__ser.write(dongle_msg.to_bytes())
+    def send(self, xmit, int_ms, content: bytes):
+        content_b64 = base64.encodebytes(content)
+        msg = bytes(f'@prov {xmit} {int_ms} {content_b64}\n')
+        self.__ser.write(msg)
 
     def recv(self, type_: str, tries=float('Inf'), interval=0.5):
         if not self.__dongle_communication_task_en:
@@ -94,7 +81,7 @@ class DongleDriver:
                 buffer = Buffer()
                 buffer.push_be(raw_msg)
 
-                dongle_data = DongleMessage.decode_msg(buffer)
+                dongle_data = decode_dongle_message(buffer)
 
                 if len(self.cache['adv']) > 20:
                     self.cache['adv'].clear_all()

@@ -1,8 +1,6 @@
-from core.message import Message
 from core.link import Link
 from core.buffer import Buffer
 from dataclasses import dataclass
-from .dongle import DongleMessage
 
 
 @dataclass
@@ -12,24 +10,12 @@ class PbAdvData:
     content: bytes
 
 
-class PbAdvMessage(Message):
+def decode_pbadv_message(buffer: Buffer):
+    link_id = int(buffer.pull_be32())
+    tr_number = int(buffer.pull_u8())
+    content = buffer.buffer
 
-    def __init__(self):
-        super().__init__()
-
-    def encode_msg(self, link: Link, content: bytes):
-        self.header.push_be32(link.link_id)
-        self.header.push_u8(link.transaction_number)
-
-        self.payload.push_be(content)
-
-    @staticmethod
-    def decode_msg(buffer: Buffer):
-        link_id = int(buffer.pull_be32())
-        tr_number = int(buffer.pull_u8())
-        content = buffer.buffer
-
-        return PbAdvData(link_id, tr_number, content)
+    return PbAdvData(link_id, tr_number, content)
 
 
 class PbAdvLayer:
@@ -37,14 +23,17 @@ class PbAdvLayer:
     def __init__(self, dongle_driver):
         self.__dongle_driver = dongle_driver
 
-    def send(self, pbadv_msg: PbAdvMessage):
-        msg = DongleMessage()
-        msg.encode_msg(2, 200, pbadv_msg.to_bytes())
-        self.__dongle_driver.send(msg)
-
-    def recv(self):
+    def send(self, link: Link, content: bytes):
         buffer = Buffer()
-        buffer.push_be(self.__dongle_driver.recv('prov'))
+        buffer.push_be32(link.link_id)
+        buffer.push_u8(link.transaction_number)
+        buffer.push_be(content)
 
-        pb_adv_data = PbAdvMessage.decode_msg(buffer)
+        self.__dongle_driver.send(2, 20, buffer.buffer_be())
+
+    def recv(self, tries=float('Inf'), interval=0.5):
+        buffer = Buffer()
+        buffer.push_be(self.__dongle_driver.recv('prov', tries, interval))
+
+        pb_adv_data = decode_pbadv_message(buffer)
         return pb_adv_data.content

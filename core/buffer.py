@@ -22,6 +22,9 @@ class Buffer:
     def buffer_be(self):
         return self.__buff
 
+    def clear(self):
+        self.__buff = b''
+
     # PUSH
 
     def push_u8(self, byte):
