@@ -13,6 +13,9 @@ class Buffer:
     def length(self):
         return len(self.buffer)
 
+    def __len__(self):
+        return len(self.buffer)
+
     def buffer_le(self):
         return self.__buff[::-1]
 
