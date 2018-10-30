@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-from enum import Enum
 from threading import Thread
 
 
@@ -15,11 +14,6 @@ def threaded(fn):
         thread.start()
         return thread
     return wrapper
-
-
-class HandSide(Enum):
-    Provisioner = 0
-    Device = 1
 
 
 def check_none(value, case_none):

@@ -1,8 +1,8 @@
-from core.dongle_cache import DongleCache
+from data_structs.dongle_cache import DongleCache
 from core.utils import threaded
 from time import sleep
 from serial import Serial
-from core.buffer import Buffer
+from data_structs.buffer import Buffer
 from dataclasses import dataclass
 import base64
 

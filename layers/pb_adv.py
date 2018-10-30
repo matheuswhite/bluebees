@@ -1,5 +1,5 @@
 from core.link import Link
-from core.buffer import Buffer
+from data_structs.buffer import Buffer
 from dataclasses import dataclass
 
 

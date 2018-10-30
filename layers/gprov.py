@@ -1,10 +1,12 @@
 from core.link import Link
-from core.buffer import Buffer
+from data_structs.buffer import Buffer
 from core.utils import threaded
-from time import time
+from time import time, sleep
+from random import randint
 from threading import Event
 from dataclasses import dataclass
 from typing import Any
+import crc8
 
 
 LINK_OPEN = 0x00
@@ -111,16 +113,6 @@ def decode_gprov_message(buffer: Buffer):
     return GProvData(type_, func_output)
 
 
-# def encode_msg_bearer_control(self, link: Link, bearer_op):
-#     op_code = ((bearer_op.value << 2) | 0b0000_0011)
-#     self.header.push_u8(op_code)
-#
-#     if op_code == LINK_OPEN:
-#         self.payload.push_be(link.device_uuid.address)
-#     elif op_code == LINK_CLOSE:
-#         self.payload.push_be(link.close_reason)
-
-
 class GProvLayer:
 
     def __init__(self, pb_adv_layer):
@@ -128,20 +120,43 @@ class GProvLayer:
         self.__ack_recv_event = Event()
         self.__ack_timeout_event = Event()
 
-    # TODO: implement open link method
-    def open(self, link: Link):
-        pass
+    def open(self, link: Link, timeout=30):
+        msg = Buffer()
+        buffer = Buffer()
+        elapsed_time = 0
+        opcode = 0x00
 
-    # TODO: Implement FCS method
-    def __fcs(self, buffer):
-        return 0
+        # add open opcode (0x03)
+        msg.push_u8(0x03)
+        # add device uuid
+        msg.push_be(link.device_uuid)
+
+        # send open
+        self.__pb_adv_layer.send(link, msg.buffer_be())
+
+        # wait bearer control ack
+        start_time = time()
+        while opcode != 0x07 and elapsed_time < timeout:
+            content = self.__pb_adv_layer.recv(1, 0.5)
+            buffer.clear()
+            buffer.push_be(content)
+            type_, msg_param = decode_gprov_message(buffer)
+            if type_ == BEARER_CONTROL:
+                opcode = msg_param.op_code
+            elapsed_time += start_time - time()
+
+    @staticmethod
+    def __fcs(buffer):
+        hash_ = crc8.crc8()
+        hash_.update(buffer.buffer_be())
+        return int(hash_.hexdigest(), 16)
 
     @threaded
     def __check_tr_ack(self):
         buffer = Buffer()
         type_ = START
         start_time = time()
-        elapsed_time = time()
+        elapsed_time = 0
 
         while type_ != ACKNOWLEDGMENT and elapsed_time < 30:
             content = self.__pb_adv_layer.recv(1, 0.5)
@@ -159,7 +174,7 @@ class GProvLayer:
         # get_total_length
         total_length = buffer.length
         # get fcs
-        fcs = self.__fcs(buffer)
+        fcs = GProvLayer.__fcs(buffer)
         # get start segment
         start_content = buffer.pull_be(MAX_MTU_SIZE - 4)
         # get continuation_segments
@@ -176,6 +191,9 @@ class GProvLayer:
         msg.push_be16(total_length)
         msg.push_u8(fcs)
         msg.push_be(start_content)
+
+        delay = randint(20, 50) / 1000
+        sleep(delay)
 
         self.__pb_adv_layer.send(link, msg.buffer_be())
 
@@ -213,6 +231,7 @@ class GProvLayer:
             # cancel tr, provisioning and close link
             raise Exception('No ack message received within 30 seconds')
 
+    # TODO: remake recv method of gprov (include segmentation)
     def recv(self):
         buffer = Buffer()
         buffer.push_be(self.__pb_adv_layer.recv('prov'))
@@ -220,6 +239,15 @@ class GProvLayer:
         gprov_data = decode_gprov_message(buffer)
         return gprov_data.msg_params.content
 
-    # TODO: implement close link method
     def close(self, link: Link):
-        pass
+        msg = Buffer()
+
+        # add close opcode (0x0B)
+        msg.push_u8(0x0B)
+        # add device uuid
+        msg.push_be(link.device_uuid)
+        # add close reason
+        msg.push_u8(link.close_reason)
+
+        # send close
+        self.__pb_adv_layer.send(link, msg.buffer_be())
