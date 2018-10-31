@@ -28,19 +28,33 @@ class Buffer:
     # PUSH
 
     def push_u8(self, byte):
+        if type(byte) == bytes:
+            byte = byte[0]
         self.__buff += int(byte).to_bytes(1, 'big')
 
     def push_be16(self, value):
-        self.__buff += int(value).to_bytes(2, 'big')
+        if type(value) == bytes:
+            self.__buff += value[0:2]
+        elif type(value) == int:
+            self.__buff += int(value).to_bytes(2, 'big')
 
     def push_le16(self, value):
-        self.__buff += int(value).to_bytes(2, 'little')
+        if type(value) == bytes:
+            self.__buff += value[0:2][::-1]
+        elif type(value) == int:
+            self.__buff += int(value).to_bytes(2, 'little')
 
     def push_be32(self, value):
-        self.__buff += int(value).to_bytes(4, 'big')
+        if type(value) == bytes:
+            self.__buff += value[0:4]
+        elif type(value) == int:
+            self.__buff += int(value).to_bytes(4, 'big')
 
     def push_le32(self, value):
-        self.__buff += int(value).to_bytes(4, 'little')
+        if type(value) == bytes:
+            self.__buff += value[0:4][::-1]
+        elif type(value) == int:
+            self.__buff += int(value).to_bytes(4, 'little')
 
     def push_be(self, value: bytes):
         self.__buff += value
@@ -51,41 +65,41 @@ class Buffer:
     # PULL
 
     def pull_u8(self):
-        byte = self.__buff[-1:]
-        self.__buff = self.__buff[:-1]
+        byte = self.__buff[0:1]
+        self.__buff = self.__buff[1:]
         return byte
 
     def pull_be16(self):
-        value = self.__buff[-2:]
-        self.__buff = self.__buff[:-2]
+        value = self.__buff[0:2]
+        self.__buff = self.__buff[2:]
         return value
 
     def pull_le16(self):
-        value = self.__buff[-2:]
+        value = self.__buff[0:2]
         value = value[::-1]
-        self.__buff = self.__buff[:-2]
+        self.__buff = self.__buff[2:]
         return value
 
     def pull_be32(self):
-        value = self.__buff[-4:]
-        self.__buff = self.__buff[:-4]
+        value = self.__buff[0:4]
+        self.__buff = self.__buff[4:]
         return value
 
     def pull_le32(self):
-        value = self.__buff[-2:]
+        value = self.__buff[0:4]
         value = value[::-1]
-        self.__buff = self.__buff[:-2]
+        self.__buff = self.__buff[4:]
         return value
 
     def pull_be(self, size):
-        value = self.__buff[-size:]
-        self.__buff = self.__buff[:-size]
+        value = self.__buff[0:size]
+        self.__buff = self.__buff[size:]
         return value
 
     def pull_le(self, size):
-        value = self.__buff[-size:]
+        value = self.__buff[0:size]
         value = value[::-1]
-        self.__buff = self.__buff[:-size]
+        self.__buff = self.__buff[size:]
         return value
 
     def pull_all_be(self):

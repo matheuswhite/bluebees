@@ -119,6 +119,7 @@ class GProvLayer:
         self.__pb_adv_layer = pb_adv_layer
         self.__ack_recv_event = Event()
         self.__ack_timeout_event = Event()
+        self.__recv_state = 0
 
     def open(self, link: Link, timeout=30):
         msg = Buffer()
@@ -209,6 +210,9 @@ class GProvLayer:
             msg.push_u8(seg_index)
             msg.push_be(continuation_segments[x])
 
+            delay = randint(20, 50) / 1000
+            sleep(delay)
+
             self.__pb_adv_layer.send(link, msg.buffer_be())
 
     def send(self, link: Link, content: bytes):
@@ -231,21 +235,51 @@ class GProvLayer:
             # cancel tr, provisioning and close link
             raise Exception('No ack message received within 30 seconds')
 
-    # TODO: remake recv method of gprov (include segmentation)
-    def recv(self):
+        link.increment_transaction_number()
+
+    def __atomic_recv(self):
         buffer = Buffer()
-        buffer.push_be(self.__pb_adv_layer.recv('prov'))
+        buffer.push_be(self.__pb_adv_layer.recv())
 
         gprov_data = decode_gprov_message(buffer)
-        return gprov_data.msg_params.content
+        return gprov_data
+
+    # TODO: remake recv method of gprov (include segmentation)
+    def recv(self, link: Link):
+        # get start tr
+        start_data = self.__atomic_recv()
+
+        if start_data.type_ != START:
+            raise Exception()
+
+        content = Buffer()
+        content.push_be(start_data.msg_params.content)
+
+        # get continuation tr
+        for index in range(1, start_data.msg_params.seg_n+1):
+            continuation_data = self.__atomic_recv()
+
+            if start_data.type_ != CONTINUATION:
+                raise Exception()
+
+            if continuation_data.msg_params.seg_index != index:
+                raise Exception()
+
+            content.push_be(continuation_data.msg_params.content)
+
+        # send ack
+        ack_msg = Buffer()
+        ack_msg.push_u8(0x01)
+
+        self.__pb_adv_layer.send(link, ack_msg.buffer_be())
+
+        return content.buffer_be()
 
     def close(self, link: Link):
         msg = Buffer()
 
         # add close opcode (0x0B)
         msg.push_u8(0x0B)
-        # add device uuid
-        msg.push_be(link.device_uuid)
         # add close reason
         msg.push_u8(link.close_reason)
 

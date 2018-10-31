@@ -73,8 +73,6 @@ class Provisioning:
         # send invite msg
         self.__gprov_layer.send(self.__link, invite_msg.buffer_be())
 
-        self.__link.increment_transaction_number()
-
         content = self.__gprov_layer.recv()
 
         capabilities_msg = Buffer()
@@ -106,8 +104,6 @@ class Provisioning:
         # send start msg
         self.__gprov_layer.send(self.__link, start_msg.buffer_be())
 
-        self.__link.increment_transaction_number()
-
     # TODO: Implement __gen_pub_keys
     def __gen_pub_keys(self):
         priv_key, pub_key = keys.gen_keypair(curve.P256)
@@ -123,8 +119,6 @@ class Provisioning:
         exchange_keys_msg.push_be32(pub_key_y)
         # send exchange_keys msg
         self.__gprov_layer.send(self.__link, exchange_keys_msg.buffer_be())
-
-        self.__link.increment_transaction_number()
 
         content = self.__gprov_layer.recv()
 
@@ -153,8 +147,6 @@ class Provisioning:
         # send confirmation msg
         self.__gprov_layer.send(self.__link, confirmation_msg.buffer_be())
 
-        self.__link.increment_transaction_number()
-
         content = self.__gprov_layer.recv()
 
         confirmation_msg = Buffer()
@@ -178,8 +170,6 @@ class Provisioning:
         random_msg.push_be32(0)
         # send random msg
         self.__gprov_layer.send(self.__link, random_msg.buffer_be())
-
-        self.__link.increment_transaction_number()
 
         content = self.__gprov_layer.recv()
 
