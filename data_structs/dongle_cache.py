@@ -8,6 +8,8 @@ class SimpleCache:
     def push(self, item):
         if item not in self.__queue:
             self.__queue.append(item)
+            return True
+        return False
 
     def pop(self):
         if len(self.__queue) > 0:

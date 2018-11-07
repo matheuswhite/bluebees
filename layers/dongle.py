@@ -1,7 +1,6 @@
 from data_structs.dongle_cache import DongleCache
 from core.utils import threaded
 from time import sleep
-from serial import Serial
 from data_structs.buffer import Buffer
 from dataclasses import dataclass
 import base64
@@ -37,7 +36,7 @@ def decode_dongle_message(buffer: Buffer):
         address += byte
         byte = buffer.pull_u8()
 
-    return DongleData(str(type_), base64.decodebytes(content_b64), address)
+    return DongleData(type_.decode('utf-8'), base64.decodebytes(content_b64), address)
 
 
 class DongleDriver:
@@ -107,7 +106,7 @@ class DongleDriver:
                 if len(self.cache['adv']) > 20:
                     self.cache['adv'].clear_all()
 
-                self.cache['adv'].push(dongle_data)
-                self.cache[dongle_data.type_].push(dongle_data.content)
+                if self.cache['adv'].push(dongle_data):
+                    self.cache[dongle_data.type_].push(dongle_data.content)
         finally:
             self.__dongle_communication_task_en = False
