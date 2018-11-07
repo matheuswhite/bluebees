@@ -65,7 +65,7 @@ class DongleDriver:
         return datas
 
     def send(self, xmit, int_ms, content: bytes):
-        if len(content) > 24:
+        if len(content) > 29:
             raise Exception('Message length greater than 24 bytes')
 
         content_b64 = base64.encodebytes(content).decode('utf-8')[:-1]

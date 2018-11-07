@@ -11,8 +11,8 @@ class PbAdvData:
 
 
 def decode_pbadv_message(buffer: Buffer):
-    link_id = int(buffer.pull_be32())
-    tr_number = int(buffer.pull_u8())
+    link_id = int.from_bytes(buffer.pull_be32(), byteorder='big')
+    tr_number = int.from_bytes(buffer.pull_u8(), byteorder='big')
     content = buffer.buffer
 
     return PbAdvData(link_id, tr_number, content)

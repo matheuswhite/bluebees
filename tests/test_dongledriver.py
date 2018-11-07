@@ -19,21 +19,21 @@ class TestDongleDriver(TestCase):
         self.assertEqual(1, len(ser.write_content), 'Write count')
         self.assertEqual(b'@prov 2 20 SGVscA==\r\n', ser.write_content[0])
 
-    def test_send_24_bytes(self):
+    def test_send_29_bytes(self):
         read_content = [b'@beacon SGVscA== AA324251bf99\r\n']
         ser = SerialMock(read_content)
         driver = DongleDriver(ser)
 
         driver.dongle_communication_task()
 
-        driver.send(2, 20, b'Help0Help1Help2Help3Help')
+        driver.send(2, 20, b'Help0Help1Help2Help3Help4Help')
 
         self.assertEqual(0, len(ser.erros), 'Error count')
         self.assertEqual(0, len(ser.temp_write), 'Temp write count')
         self.assertEqual(1, len(ser.write_content), 'Write count')
-        self.assertEqual(b'@prov 2 20 SGVscDBIZWxwMUhlbHAySGVscDNIZWxw\r\n', ser.write_content[0])
+        self.assertEqual(b'@prov 2 20 SGVscDBIZWxwMUhlbHAySGVscDNIZWxwNEhlbHA=\r\n', ser.write_content[0])
 
-    def test_send_25_bytes(self):
+    def test_send_30_bytes(self):
         read_content = [b'@beacon SGVscA== AA324251bf99\r\n']
         ser = SerialMock(read_content)
         driver = DongleDriver(ser)
@@ -41,7 +41,7 @@ class TestDongleDriver(TestCase):
         driver.dongle_communication_task()
 
         with self.assertRaises(Exception) as context:
-            driver.send(2, 20, b'Help0Help1Help2Help3Help4')
+            driver.send(2, 20, b'Help0Help1Help2Help3Help4Help5')
 
         self.assertTrue('Message length greater than 24 bytes' in str(context.exception))
         self.assertEqual(0, len(ser.erros), 'Error count')

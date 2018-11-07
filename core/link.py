@@ -10,12 +10,12 @@ class Roulette:
         self.roulette = []
 
     def new_link_id(self):
-        if len(self.roulette) >= 2**4:
-            raise Exception
+        if len(self.roulette) >= 2**32:
+            raise Exception()
 
-        id = randint(0, (2**4)-1)
+        id = randint(0, (2 ** 32) - 1)
         while id in self.roulette:
-            id = randint(0, (2 ** 4) - 1)
+            id = randint(0, (2 ** 32) - 1)
 
         return id
 
