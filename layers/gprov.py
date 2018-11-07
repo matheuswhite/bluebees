@@ -54,7 +54,7 @@ class GProvData:
 
 def decode_msg_start(buffer: Buffer):
     first_byte = buffer.pull_u8()
-    seg_n = (first_byte & 0b1111_1100) >> 2
+    seg_n = (int.from_bytes(first_byte, byteorder='big') & 0b1111_1100) >> 2
 
     total_length = buffer.pull_be16()
     fcs = buffer.pull_u8()
@@ -65,7 +65,7 @@ def decode_msg_start(buffer: Buffer):
 
 def decode_msg_ack(buffer: Buffer):
     first_byte = buffer.pull_u8()
-    padding = (first_byte & 0b1111_1100) >> 2
+    padding = (int.from_bytes(first_byte, byteorder='big') & 0b1111_1100) >> 2
     if padding != 0:
         raise Exception('Padding of Ack message is not zero')
 
@@ -74,7 +74,7 @@ def decode_msg_ack(buffer: Buffer):
 
 def decode_msg_continuation(buffer: Buffer):
     first_byte = buffer.pull_u8()
-    seg_index = (first_byte & 0b1111_1100) >> 2
+    seg_index = (int.from_bytes(first_byte, byteorder='big') & 0b1111_1100) >> 2
     content = buffer.buffer
 
     return GProvContinuation(seg_index, content)
@@ -82,7 +82,7 @@ def decode_msg_continuation(buffer: Buffer):
 
 def decode_msg_bearer_control(buffer: Buffer):
     first_byte = buffer.pull_u8()
-    op_code = (first_byte & 0b1111_1100) >> 2
+    op_code = (int.from_bytes(first_byte, byteorder='big') & 0b1111_1100) >> 2
 
     if op_code == LINK_OPEN:
         uuid = buffer.buffer
@@ -97,7 +97,7 @@ def decode_msg_bearer_control(buffer: Buffer):
 
 
 def decode_gprov_message(buffer: Buffer):
-    type_ = buffer.seek(0) & 0b0000_0011
+    type_ = int.from_bytes(buffer.seek(0), byteorder='big') & 0b0000_0011
 
     if type_ == START:
         func_output = decode_msg_start(buffer)
@@ -133,18 +133,27 @@ class GProvLayer:
         msg.push_be(link.device_uuid)
 
         # send open
+        print(f'Opening Link {link.link_id}...')
         self.__pb_adv_layer.send(link, msg.buffer_be())
 
         # wait bearer control ack
         start_time = time()
-        while opcode != 0x07 and elapsed_time < timeout:
+        while opcode != LINK_ACK and elapsed_time < timeout:
             content = self.__pb_adv_layer.recv(1, 0.5)
-            buffer.clear()
-            buffer.push_be(content)
-            type_, msg_param = decode_gprov_message(buffer)
-            if type_ == BEARER_CONTROL:
-                opcode = msg_param.op_code
-            elapsed_time += start_time - time()
+            if content is not None:
+                buffer.clear()
+                buffer.push_be(content)
+                gprov_data = decode_gprov_message(buffer)
+                if gprov_data.type_ == BEARER_CONTROL:
+                    opcode = gprov_data.msg_params.op_code
+            elapsed_time = time() - start_time
+
+        if opcode == LINK_ACK and elapsed_time < timeout:
+            link.is_open = True
+            print(f'Link {link.link_id} open.')
+        else:
+            print(f'Fail to open Link {link.link_id}')
+        return link
 
     @staticmethod
     def __fcs(buffer):

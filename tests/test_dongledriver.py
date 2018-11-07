@@ -1,5 +1,5 @@
 from unittest import TestCase
-from layers.dongle import DongleDriver
+from layers.dongle import DongleDriver, MaxTriesException
 from tests.serial_mock import SerialMock
 
 
@@ -103,10 +103,9 @@ class TestDongleDriver(TestCase):
 
         content = driver.recv('prov')
 
-        with self.assertRaises(Exception) as context:
-            content2 = driver.recv('prov', tries=3, interval=0.5)
+        content2 = driver.recv('prov', tries=3, interval=0.5)
 
-        self.assertTrue('Reach out of max number of tries' in str(context.exception))
+        self.assertIsNone(content2)
         self.assertEqual(b'Help', content)
         self.assertEqual(0, len(ser.erros), 'Error count')
         self.assertEqual(1, len(driver.cache.adv_cache), 'Adv cache')

@@ -29,6 +29,8 @@ class SimpleCache:
     def __len__(self):
         return len(self.__queue)
 
+    def __str__(self):
+        return str(self.__queue)
 
 class DongleCache:
 

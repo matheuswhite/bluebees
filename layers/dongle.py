@@ -6,6 +6,10 @@ from dataclasses import dataclass
 import base64
 
 
+class MaxTriesException(Exception):
+    pass
+
+
 @dataclass
 class DongleData:
     type_: str
@@ -16,6 +20,7 @@ class DongleData:
 def decode_dongle_message(buffer: Buffer):
     at_symbol = buffer.pull_u8()
     if at_symbol != b'@':
+        print('Exception decode dongle message')
         raise Exception('Dongle messages must start with @ symbol')
 
     type_ = b''
@@ -36,7 +41,7 @@ def decode_dongle_message(buffer: Buffer):
         address += byte
         byte = buffer.pull_u8()
 
-    return DongleData(type_.decode('utf-8'), base64.decodebytes(content_b64), address)
+    return DongleData(type_.decode('utf-8'), base64.b64decode(content_b64), address)
 
 
 class DongleDriver:
@@ -89,7 +94,7 @@ class DongleDriver:
                 if len(self.cache[type_]) > 0:
                     return self.cache[type_].pop()
                 sleep(interval)
-            raise Exception('Reach out of max number of tries')
+            return None
 
     @threaded
     def dongle_communication_task(self):

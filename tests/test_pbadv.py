@@ -1,6 +1,6 @@
 from unittest import TestCase
 from layers.pb_adv import PbAdvLayer
-from layers.dongle import DongleDriver
+from layers.dongle import DongleDriver, MaxTriesException
 from tests.serial_mock import SerialMock
 from core.link import Link
 import base64
@@ -104,10 +104,9 @@ class TestPbAdvLayer(TestCase):
 
         content = pb_adv.recv()
 
-        with self.assertRaises(Exception) as context:
-            content2 = pb_adv.recv(tries=3, interval=0.5)
+        content2 = pb_adv.recv(tries=3, interval=0.5)
 
-        self.assertTrue('Reach out of max number of tries' in str(context.exception))
+        self.assertIsNone(content2)
         self.assertEqual(b'Help', content)
 
     def test_send_n_recv(self):

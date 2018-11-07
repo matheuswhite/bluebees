@@ -116,4 +116,4 @@ class Buffer:
     # SEEK
 
     def seek(self, index):
-        return self.__buff[index]
+        return self.__buff[index:index+1]

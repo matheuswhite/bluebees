@@ -32,8 +32,12 @@ class PbAdvLayer:
         self.__dongle_driver.send(2, 20, buffer.buffer_be())
 
     def recv(self, tries=float('Inf'), interval=0.5):
+        content = self.__dongle_driver.recv('prov', tries, interval)
+        if content is None:
+            return None
+
         buffer = Buffer()
-        buffer.push_be(self.__dongle_driver.recv('prov', tries, interval))
+        buffer.push_be(content)
 
         pb_adv_data = decode_pbadv_message(buffer)
         return pb_adv_data.content
