@@ -42,19 +42,40 @@ def decode_dongle_message(buffer: Buffer):
 
 class DongleDriver:
 
-    def __init__(self, port, baudrate=115200):
+    def __init__(self, serial):
         self.cache = DongleCache()
 
-        self.__ser = Serial()
-        self.__ser.port = port
-        self.__ser.baudrate = baudrate
+        self.__ser = serial
+        self.__ser.open()
 
         self.__dongle_communication_task_en = False
 
+    def __split_data(self, data: bytes):
+        datas = []
+        part = b''
+
+        for byte in data:
+            if len(part) >= 5:
+                datas.append(part)
+                part = b''
+            part += byte.to_bytes(1, 'big')
+
+        if len(part) > 0:
+            datas.append(part)
+
+        return datas
+
     def send(self, xmit, int_ms, content: bytes):
-        content_b64 = base64.encodebytes(content)
-        msg = bytes(f'@prov {xmit} {int_ms} {content_b64}\n')
-        self.__ser.write(msg)
+        if len(content) > 24:
+            raise Exception('Message length greater than 24 bytes')
+
+        content_b64 = base64.encodebytes(content).decode('utf-8')[:-1]
+        msg = f'@prov {xmit} {int_ms} {content_b64}\r\n'.encode('utf-8')
+
+        parts = self.__split_data(msg)
+        for p in parts:
+            self.__ser.write(p)
+            sleep(0.005)
 
     def recv(self, type_: str, tries=float('Inf'), interval=0.5):
         if not self.__dongle_communication_task_en:
