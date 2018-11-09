@@ -20,6 +20,16 @@ BEARER_CONTROL = 0x03
 
 MAX_MTU_SIZE = 24
 
+CLOSE_SUCCESS = 0x00
+CLOSE_TIMEOUT = 0x01
+CLOSE_FAIL = 0x02
+
+
+class UnexpectedDeviceCloseException(Exception):
+
+    def __init__(self, close_reason):
+        self.close_reason = close_reason
+
 
 @dataclass
 class GProvStart:
@@ -121,6 +131,11 @@ class GProvLayer:
         self.__ack_timeout_event = Event()
         self.__recv_state = 0
 
+    @staticmethod
+    def __check_device_close(gprov_data: GProvData):
+        if gprov_data.type_ == BEARER_CONTROL:
+            return gprov_data.msg_params.op_code == LINK_CLOSE
+
     def open(self, link: Link, timeout=30):
         msg = Buffer()
         buffer = Buffer()
@@ -153,7 +168,8 @@ class GProvLayer:
             print(f'Link {link.link_id} open.')
         else:
             print(f'Fail to open Link {link.link_id}')
-        return link
+
+        link.increment_transaction_number()
 
     @staticmethod
     def __fcs(buffer):
@@ -162,7 +178,7 @@ class GProvLayer:
         return int(hash_.hexdigest(), 16)
 
     @threaded
-    def __check_tr_ack(self):
+    def __check_tr_ack(self, link: Link):
         buffer = Buffer()
         type_ = START
         start_time = time()
@@ -172,8 +188,14 @@ class GProvLayer:
             content = self.__pb_adv_layer.recv(1, 0.5)
             buffer.clear()
             buffer.push_be(content)
-            type_ = decode_gprov_message(buffer)
-            elapsed_time += start_time - time()
+            gprov_data = decode_gprov_message(buffer)
+            if self.__check_device_close(gprov_data):
+                link.is_open = False
+                link.close_reason = gprov_data.msg_params.content
+                self.__ack_timeout_event.set()
+                return
+            type_ = gprov_data.type_
+            elapsed_time = time() - start_time
 
         if type_ == ACKNOWLEDGMENT and elapsed_time < 30:
             self.__ack_recv_event.set()
@@ -232,13 +254,16 @@ class GProvLayer:
         continuation_segments = self.__send_start_tr(link, buffer)
 
         # start thread to check ack response
-        self.__check_tr_ack()
+        self.__check_tr_ack(link)
 
         # send
         self.__send_continuation_tr(link, continuation_segments)
 
         # wait ack response
-        self.__ack_timeout_event.wait(35)
+        self.__ack_timeout_event.wait(30.5)
+        # check if link is open yet
+        if not link.is_open:
+            raise UnexpectedDeviceCloseException(link.close_reason)
         # check if ack was received
         if not self.__ack_recv_event.is_set():
             # cancel tr, provisioning and close link
@@ -253,13 +278,17 @@ class GProvLayer:
         gprov_data = decode_gprov_message(buffer)
         return gprov_data
 
-    # TODO: remake recv method of gprov (include segmentation)
+    # TODO: verify if FCS value on message match the FCS computed from message content
     def recv(self, link: Link):
         # get start tr
         start_data = self.__atomic_recv()
 
+        if self.__check_device_close(start_data):
+            link.is_open = False
+            raise UnexpectedDeviceCloseException(start_data.msg_params.content)
+
         if start_data.type_ != START:
-            raise Exception()
+            raise Exception('First message is not start')
 
         content = Buffer()
         content.push_be(start_data.msg_params.content)
@@ -268,11 +297,16 @@ class GProvLayer:
         for index in range(1, start_data.msg_params.seg_n+1):
             continuation_data = self.__atomic_recv()
 
-            if start_data.type_ != CONTINUATION:
-                raise Exception()
+            if self.__check_device_close(continuation_data):
+                link.is_open = False
+                raise UnexpectedDeviceCloseException(continuation_data.msg_params.content)
+
+            if continuation_data.type_ != CONTINUATION:
+                raise Exception(f'Expected a continuation message, but got {continuation_data.type_}')
 
             if continuation_data.msg_params.seg_index != index:
-                raise Exception()
+                raise Exception(f'Wrong index of continuation message. Expected {index}, actual '
+                                f'{continuation_data.msg_params.seg_index}')
 
             content.push_be(continuation_data.msg_params.content)
 
@@ -285,6 +319,7 @@ class GProvLayer:
         return content.buffer_be()
 
     def close(self, link: Link):
+        print(f'Closing Link {link.link_id}...')
         msg = Buffer()
 
         # add close opcode (0x0B)
@@ -294,3 +329,7 @@ class GProvLayer:
 
         # send close
         self.__pb_adv_layer.send(link, msg.buffer_be())
+
+        link.is_open = False
+        print(f'Link {link.link_id} closed. Reason: {link.close_reason}')
+        link.increment_transaction_number()
