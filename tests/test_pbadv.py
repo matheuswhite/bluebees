@@ -85,7 +85,9 @@ class TestPbAdvLayer(TestCase):
         driver.dongle_communication_task()
 
         content = pb_adv.recv()
+        content = content.content
         content2 = pb_adv.recv()
+        content2 = content2.content
 
         self.assertEqual(b'Help', content)
         self.assertEqual(b'Help2', content2)
@@ -103,6 +105,7 @@ class TestPbAdvLayer(TestCase):
         driver.dongle_communication_task()
 
         content = pb_adv.recv()
+        content = content.content
 
         content2 = pb_adv.recv(tries=3, interval=0.5)
 
@@ -126,7 +129,9 @@ class TestPbAdvLayer(TestCase):
 
         pb_adv.send(link, b'Help')
         content = pb_adv.recv()
+        content = content.content
         content2 = pb_adv.recv()
+        content2 = content2.content
 
         contentb64 = link.link_id.to_bytes(4, 'big') + b'\x00Help'
         contentb64 = base64.b64encode(contentb64).decode('utf-8')
