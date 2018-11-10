@@ -156,6 +156,7 @@ class GProvLayer:
         while opcode != LINK_ACK and elapsed_time < timeout:
             content = self.__pb_adv_layer.recv(1, 0.5)
             if content is not None:
+                content = content.content
                 buffer.clear()
                 buffer.push_be(content)
                 gprov_data = decode_gprov_message(buffer)
@@ -177,6 +178,7 @@ class GProvLayer:
         hash_.update(buffer.buffer_be())
         return int(hash_.hexdigest(), 16)
 
+    # TODO: Check incoming tr_number
     @threaded
     def __check_tr_ack(self, link: Link):
         buffer = Buffer()
@@ -186,15 +188,17 @@ class GProvLayer:
 
         while type_ != ACKNOWLEDGMENT and elapsed_time < 30:
             content = self.__pb_adv_layer.recv(1, 0.5)
-            buffer.clear()
-            buffer.push_be(content)
-            gprov_data = decode_gprov_message(buffer)
-            if self.__check_device_close(gprov_data):
-                link.is_open = False
-                link.close_reason = gprov_data.msg_params.content
-                self.__ack_timeout_event.set()
-                return
-            type_ = gprov_data.type_
+            if content is not None:
+                content = content.content
+                buffer.clear()
+                buffer.push_be(content)
+                gprov_data = decode_gprov_message(buffer)
+                if self.__check_device_close(gprov_data):
+                    link.is_open = False
+                    link.close_reason = gprov_data.msg_params.content
+                    self.__ack_timeout_event.set()
+                    return
+                type_ = gprov_data.type_
             elapsed_time = time() - start_time
 
         if type_ == ACKNOWLEDGMENT and elapsed_time < 30:
@@ -273,15 +277,16 @@ class GProvLayer:
 
     def __atomic_recv(self):
         buffer = Buffer()
-        buffer.push_be(self.__pb_adv_layer.recv())
+        data = self.__pb_adv_layer.recv()
+        buffer.push_be(data.content)
 
         gprov_data = decode_gprov_message(buffer)
-        return gprov_data
+        return gprov_data, data.tr_number
 
-    # TODO: verify if FCS value on message match the FCS computed from message content
     def recv(self, link: Link):
         # get start tr
-        start_data = self.__atomic_recv()
+        print('Waiting start tr...')
+        start_data, device_tr_number = self.__atomic_recv()
 
         if self.__check_device_close(start_data):
             link.is_open = False
@@ -292,10 +297,12 @@ class GProvLayer:
 
         content = Buffer()
         content.push_be(start_data.msg_params.content)
+        print('Start tr received.')
 
         # get continuation tr
         for index in range(1, start_data.msg_params.seg_n+1):
-            continuation_data = self.__atomic_recv()
+            print(f'Waiting continuation tr {index}...')
+            continuation_data, _ = self.__atomic_recv()
 
             if self.__check_device_close(continuation_data):
                 link.is_open = False
@@ -309,12 +316,27 @@ class GProvLayer:
                                 f'{continuation_data.msg_params.seg_index}')
 
             content.push_be(continuation_data.msg_params.content)
+            print(f'Continuation tr {index} received.')
+
+        print('Computing fcs...')
+        fcs_computed = self.__fcs(content)
+
+        if fcs_computed != int.from_bytes(start_data.msg_params.fcs, 'big'):
+            raise Exception(f"FCS computed isn't equal to received FCS. Computed {fcs_computed}, "
+                            f"Received {start_data.msg_params.fcs}")
+
+        print('FCS values match.')
 
         # send ack
         ack_msg = Buffer()
         ack_msg.push_u8(0x01)
 
-        self.__pb_adv_layer.send(link, ack_msg.buffer_be())
+        ack_link = Link(link.device_uuid, empty_link_id=True)
+        ack_link.get_copy(link, device_tr_number)
+
+        print('Sending ack...')
+        self.__pb_adv_layer.send(ack_link, ack_msg.buffer_be())
+        print('Ack send.')
 
         return content.buffer_be()
 

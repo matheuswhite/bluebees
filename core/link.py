@@ -25,9 +25,9 @@ _roulette = Roulette()
 
 class Link:
 
-    def __init__(self, device_uuid: bytes):
+    def __init__(self, device_uuid: bytes, empty_link_id=False):
         self.__device_uuid = device_uuid
-        self.__link_id = _roulette.new_link_id()
+        self.__link_id = _roulette.new_link_id() if not empty_link_id else None
         self.is_open = False
         self.close_reason = b'\x00'
         self.__transaction_number = 0x00
@@ -48,3 +48,10 @@ class Link:
         self.__transaction_number += 1
         self.__transaction_number %= 0x80
         return self.__transaction_number
+
+    def get_copy(self, link, new_tr_number=None):
+        self.__device_uuid = link.device_uuid
+        self.__link_id = link.link_id
+        self.is_open = link.is_open
+        self.close_reason = link.close_reason
+        self.__transaction_number = link.transaction_number if new_tr_number is None else new_tr_number

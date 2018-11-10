@@ -40,4 +40,4 @@ class PbAdvLayer:
         buffer.push_be(content)
 
         pb_adv_data = decode_pbadv_message(buffer)
-        return pb_adv_data.content
+        return pb_adv_data
