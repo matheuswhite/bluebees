@@ -1,4 +1,4 @@
 *.idea/*
 *lib/*
-core/__pycache__/*
+*/__pycache__/*
 tests/.cache/*
