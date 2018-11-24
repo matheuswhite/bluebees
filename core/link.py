@@ -25,9 +25,9 @@ _roulette = Roulette()
 
 class Link:
 
-    def __init__(self):
+    def __init__(self, link_id=0x100000000):
         self.device_uuid = b''
-        self.link_id = _roulette.new_link_id()
+        self.link_id = _roulette.new_link_id() if link_id == 0x100000000 else link_id
         self.is_open = False
         self.close_reason = b'\x00'
         self.transaction_number = 0x00

@@ -52,11 +52,12 @@ class Transaction:
             for x in range(self.recv_medata['n_segments']):
                 payload += self.all_segments[x]
 
+            if len(payload) != self.recv_medata['total_length']:
+                return None, 'length_wrong'
+
             fcs_calc = crc8(payload)
             if fcs_calc != self.recv_medata['fcs']:
                 return None, 'fcs_wrong'
-            if len(payload) != self.recv_medata['total_length']:
-                return None, 'length_wrong'
 
             return payload
         except KeyError:

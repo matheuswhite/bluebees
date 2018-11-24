@@ -1,5 +1,5 @@
 from unittest import TestCase
-from layers.dongle import DongleDriver, MaxTriesException
+from core.dongle import DongleDriver
 from tests.serial_mock import SerialMock
 
 

@@ -1,6 +1,6 @@
 from unittest import TestCase
 from layers.pb_adv import PbAdvLayer
-from layers.dongle import DongleDriver, MaxTriesException
+from core.dongle import DongleDriver
 from tests.serial_mock import SerialMock
 from core.link import Link
 import base64

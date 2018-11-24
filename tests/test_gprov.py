@@ -1,7 +1,7 @@
 from unittest import TestCase
 from layers.gprov import GProvLayer, CLOSE_SUCCESS, CLOSE_TIMEOUT, CLOSE_FAIL,UnexpectedDeviceCloseException
 from layers.pb_adv import PbAdvLayer
-from layers.dongle import DongleDriver
+from core.dongle import DongleDriver
 from tests.serial_mock import SerialMock
 from core.link import Link
 import time

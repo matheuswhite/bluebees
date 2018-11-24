@@ -1,191 +1,234 @@
-from core.device import Device, Capabilities, ProvisioningData
-from core.link import Link
-from layers.gprov import GProvLayer
-from layers.dongle import DongleDriver
-from data_structs.buffer import Buffer
+from core.utils import timer
 from threading import Event
-from core.utils import threaded
-from fastecdsa import keys, curve
+from core.link import Link
+from data_structs.buffer import Buffer
+from core.device import Capabilities
+from ecdsa import SigningKey, NIST256p
+
+PROVISIONING_INVITE = 0x00
+PROVISIONING_CAPABILITIES = 0x01
+PROVISIONING_START = 0x02
+PROVISIONING_PUBLIC_KEY = 0x03
+PROVISIONING_INPUT_COMPLETE = 0x04
+PROVISIONING_CONFIRMATION = 0x05
+PROVISIONING_RANDOM = 0x06
+PROVISIONING_DATA = 0x07
+PROVISIONING_COMPLETE = 0x08
+PROVISIONING_FAILED = 0x09
 
 
-class Provisioning:
+class ProvisioningFail(Exception):
+    pass
 
-    def __init__(self, gprov_layer: GProvLayer, dongle_driver: DongleDriver):
+
+class ProvisioningTimeout(Exception):
+    pass
+
+
+# TODO: Add the verification o provisioning fail at each step
+class ProvisioningLayer:
+
+    def __init__(self, gprov_layer, dongle_driver):
         self.__gprov_layer = gprov_layer
         self.__dongle_driver = dongle_driver
-        self.__devices = []
         self.__link = None
+        self.__device_capabilities = None
+        self.__priv_key = None
+        self.__pub_key = None
+        self.__device_pub_key = None
+        self.__ecdh_secret = None
+        self.__sk = None
+        self.__vk = None
+        self.__provisioning_invite = None
+        self.__provisioning_capabilities = None
+        self.__provisioning_start = None
+        self.__auth_value = None
+        self.__random_provisioner = None
+        self.__random_device = None
         self.default_attention_duration = 5
-        self.is_scan_disable = Event()
+        self.public_key_type = 0x00
+        self.authentication_method = 0x00
+        self.authentication_action = 0x00
+        self.authentication_size = 0x00
 
-    def enable_scan(self):
-        self.is_scan_disable.clear()
-        self.__scan_task()
+    def scan(self, timeout=None):
+        device = None
 
-    def disable_scan(self):
-        self.is_scan_disable.set()
+        if timeout is not None:
+            scan_timeout_event = Event()
+            timer(timeout, scan_timeout_event)
+            while not scan_timeout_event.is_set():
+                content = self.__dongle_driver.recv('beacon', 1, 0.5)
+                if content is not None:
+                    device = self.__process_beacon_content(content)
+                    break
+        else:
+            content = self.__dongle_driver.recv('beacon')
+            device = self.__process_beacon_content(content)
 
-    @threaded
-    def __scan_task(self):
-        while not self.is_scan_disable.is_set():
-            device_uuid = self.__dongle_driver.recv('beacon')
-            device = Device(device_uuid)
-            self.__devices.append(device)
+        return device
 
-    @property
-    def devices(self):
-        return self.__devices
+    def provisioning_device(self, device_uuid: bytes):
+        self.__link = Link(device_uuid)
+        self.__gprov_layer.open(self.__link)
 
-    '''
-    This provisioning don't use OOB feature
-    '''
-    def provisioning_device(self, device: Device):
-        self.__gen_new_link(device.uuid)
+        try:
+            self.__invitation_prov_phase()
+            self.__exchanging_pub_keys_prov_phase()
+            self.__authentication_prov_phase()
+            self.__send_data_prov_phase()
 
-        device.capabilities = self.__invite_device()
+            self.__link.close_reason = CLOSE_SUCCESS
+        except ProvisioningFail:
+            self.__link.close_reason = CLOSE_FAIL
+        except ProvisioningTimeout:
+            self.__link.close_reason = CLOSE_TIMEOUT
+        finally:
+            self.__gprov_layer.close(self.__link)
 
-        self.__start_provisioning(device.capabilities)
+    # TODO: change this to get only device uuid
+    @staticmethod
+    def __process_beacon_content(content: bytes):
+        return content.split(b' ')[1]
 
-        priv_key, pub_key_x, pub_key_y = self.__gen_pub_keys()
+    def __invitation_prov_phase(self):
+        # send prov invite
+        send_buff = Buffer()
+        send_buff.push_u8(PROVISIONING_INVITE)
+        send_buff.push_u8(self.default_attention_duration)
+        self.__gprov_layer.send(self.__link, send_buff.buffer_be())
 
-        dev_pub_key_x, dev_pub_key_y = self.__exchange_public_keys(pub_key_x, pub_key_y)
+        self.__provisioning_invite = self.default_attention_duration
 
-        self.__start_prov_confirmation()
+        # recv prov capabilities
+        recv_buff = Buffer()
+        content = self.__gprov_layer.recv(self.__link)
+        recv_buff.push_be(content)
+        opcode = recv_buff.pull_u8()
+        self.__provisioning_capabilities = recv_buff.buffer_be()
+        if opcode != PROVISIONING_CAPABILITIES:
+            raise ProvisioningFail()
+        self.__device_capabilities = Capabilities(recv_buff)
 
-        self.__start_prov_random_confirmation()
+    def __exchanging_pub_keys_prov_phase(self):
+        # send prov start (No OOB)
+        start_buff = Buffer()
+        start_buff.push_u8(PROVISIONING_START)
+        start_buff.push_u8(0x00)
+        start_buff.push_u8(self.public_key_type)
+        start_buff.push_u8(self.authentication_method)
+        start_buff.push_u8(self.authentication_action)
+        start_buff.push_u8(self.authentication_size)
+        self.__provisioning_start = start_buff.buffer_be()[1:]
+        self.__auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        self.__gprov_layer.send(self.__link, start_buff.buffer_be())
 
-        prov_data = self.__new_prov_data()
+        # gen priv_key and pub_key
+        self.__gen_keys()
 
-        self.__send_prov_data(prov_data)
+        # send my pub key
+        pub_key_buff = Buffer()
+        pub_key_buff.push_u8(PROVISIONING_PUBLIC_KEY)
+        pub_key_buff.push_be(self.__pub_key['x'])
+        pub_key_buff.push_be(self.__pub_key['y'])
+        self.__gprov_layer.send(self.__link, pub_key_buff.buffer_be())
 
-        self.__close_link()
+        # recv device pub key
+        recv_buff = Buffer()
+        content = self.__gprov_layer.recv(self.__link)
+        recv_buff.push_be(content)
+        opcode = recv_buff.pull_u8()
+        if opcode != PROVISIONING_PUBLIC_KEY:
+            raise ProvisioningFail()
+        self.__device_pub_key = {
+            'x': recv_buff.pull_be(32),
+            'y': recv_buff.pull_be(32)
+        }
 
-    def __gen_new_link(self, dev_uuid):
-        self.__link = Link(dev_uuid)
-        self.__link = self.__gprov_layer.open(self.__link)
+        # calc ecdh_secret = P-256(priv_key, dev_pub_key)
+        self.__calc_ecdh_secret()
 
-    def __invite_device(self):
-        invite_msg = Buffer()
-        # add invite opcode
-        invite_msg.push_u8(0x00)
-        # add attention duration
-        invite_msg.push_u8(self.default_attention_duration)
-        # send invite msg
-        self.__gprov_layer.send(self.__link, invite_msg.buffer_be())
+    def __authentication_prov_phase(self):
+        buff = Buffer()
 
-        content = self.__gprov_layer.recv()
+        # calc crypto values need
+        confirmation_inputs = self.__provisioning_invite + self.__provisioning_capabilities + \
+                              self.__provisioning_start + self.__pub_key['x'] + self.__pub_key['y'] + \
+                              self.__device_pub_key['x'] + self.__device_pub_key['y']
+        confirmation_salt = self.__s1(confirmation_inputs)
+        confirmation_key = self.__k1(self.__ecdh_secret, confirmation_salt, 'prck')
 
-        capabilities_msg = Buffer()
-        capabilities_msg.push_be(content)
+        self.__gen_random_provisioner()
 
-        type_ = capabilities_msg.pull_u8()
+        # send confirmation provisioner
+        confirmation_provisioner = self.__aes_cmac(confirmation_key, self.__random_provisioner, self.__auth_value)
+        buff.push_be(confirmation_provisioner)
+        self.__gprov_layer.send(self.__link, buff.buffer_be())
 
-        if type_ != 0x01:
-            raise Exception(f'Expected capabilities msg, but got {type_}')
+        # recv confiramtion device
+        recv_confirmation_device = self.__recv(opcode_verification=PROVISIONING_CONFIRMATION)
 
-        capabilities = Capabilities(capabilities_msg)
+        # send random provisioner
+        buff.clear()
+        buff.push_be(self.__random_provisioner)
+        self.__gprov_layer.send(self.__link, buff.buffer_be())
 
-        return capabilities
+        # recv random device
+        self.__random_device = self.__recv(PROVISIONING_RANDOM)
 
-    def __start_provisioning(self, capabilities: Capabilities):
-        start_msg = Buffer()
-        # add start opcode
-        start_msg.push_u8(0x02)
-        # add algorithm
-        start_msg.push_u8(0x00)
-        # add public key (No OOB)
-        start_msg.push_u8(0x00)
-        # add authentication method (No OOB)
-        start_msg.push_u8(0x00)
-        # add authentication action
-        start_msg.push_u8(0x00)
-        # add authentication size
-        start_msg.push_u8(0x00)
-        # send start msg
-        self.__gprov_layer.send(self.__link, start_msg.buffer_be())
+        # check info
+        calc_confiramtion_device = self.__aes_cmac(confirmation_key, self.__random_device, self.__auth_value)
 
-    # TODO: Implement __gen_pub_keys
-    def __gen_pub_keys(self):
-        priv_key, pub_key = keys.gen_keypair(curve.P256)
-        return priv_key, (pub_key & 0xFFFFFFFF_00000000) >> 32, pub_key & 0x00000000_FFFFFFFF
+        if recv_confirmation_device != calc_confiramtion_device:
+            raise ProvisioningFail()
 
-    def __exchange_public_keys(self, pub_key_x, pub_key_y):
-        exchange_keys_msg = Buffer()
-        # add exchange keys opcode
-        exchange_keys_msg.push_u8(0x03)
-        # add public key x
-        exchange_keys_msg.push_be32(pub_key_x)
-        # add public key y
-        exchange_keys_msg.push_be32(pub_key_y)
-        # send exchange_keys msg
-        self.__gprov_layer.send(self.__link, exchange_keys_msg.buffer_be())
+    def __send_data_prov_phase(self):
+        raise NotImplementedError
 
-        content = self.__gprov_layer.recv()
+    def __recv(self, opcode_verification=None):
+        buff = Buffer()
+        buff.push_be(self.__gprov_layer.recv(self.__link))
+        opcode = buff.pull_u8()
+        content = buff.buffer_be()
+        if opcode == PROVISIONING_FAILED:
+            raise ProvisioningFail()
+        if opcode_verification is not None:
+            if opcode != opcode_verification:
+                raise ProvisioningFail()
+            return content
+        else:
+            return opcode, content
 
-        exchange_keys_msg = Buffer()
-        exchange_keys_msg.push_be(content)
+    def __gen_keys(self):
 
-        type_ = exchange_keys_msg.pull_u8()
+        self.__sk = SigningKey.generate(curve=NIST256p)
+        self.__vk = self.__sk.get_verifying_key()
 
-        if type_ != 0x05:
-            raise Exception(f'Expected exchange_keys msg, but got {type_}')
+        self.__priv_key = self.__sk.to_string()
+        self.__pub_key = {
+            'x': self.__vk.to_string()[0:32],
+            'y': self.__vk.to_string()[32:64]
+        }
 
-        dev_pub_key_x = exchange_keys_msg.pull_be32()
-        dev_pub_key_y = exchange_keys_msg.pull_be32()
+    # TODO: ECDHsecret is 32 bytes or 64 bytes
+    def __calc_ecdh_secret(self):
+        secret = self.__sk.privkey.secret_multiplier * self.__vk.pubkey.point
 
-        return dev_pub_key_x, dev_pub_key_y
+        self.__ecdh_secret = {
+            'x': secret.x().to_bytes(32, 'big'),
+            'y': secret.y().to_bytes(32, 'big')
+        }
 
-    def __start_prov_confirmation(self):
-        confirmation_msg = Buffer()
-        # add confirmation opcode
-        confirmation_msg.push_u8(0x05)
-        # add zeros
-        confirmation_msg.push_be32(0)
-        confirmation_msg.push_be32(0)
-        confirmation_msg.push_be32(0)
-        confirmation_msg.push_be32(0)
-        # send confirmation msg
-        self.__gprov_layer.send(self.__link, confirmation_msg.buffer_be())
+    def __s1(self, input_):
+        raise NotImplementedError
 
-        content = self.__gprov_layer.recv()
+    def __k1(self, shared_secret, salt, msg):
+        raise NotImplementedError
 
-        confirmation_msg = Buffer()
-        confirmation_msg.push_be(content)
+    def __gen_random_provisioner(self):
+        self.__random_provisioner = 0
 
-        type_ = confirmation_msg.pull_u8()
+        raise NotImplementedError
 
-        if type_ != 0x05:
-            raise Exception(f'Expected confirmation msg, but got {type_}')
-
-        return confirmation_msg.pull_all_be()
-
-    def __start_prov_random_confirmation(self):
-        random_msg = Buffer()
-        # add random opcode
-        random_msg.push_u8(0x06)
-        # add zeros
-        random_msg.push_be32(0)
-        random_msg.push_be32(0)
-        random_msg.push_be32(0)
-        random_msg.push_be32(0)
-        # send random msg
-        self.__gprov_layer.send(self.__link, random_msg.buffer_be())
-
-        content = self.__gprov_layer.recv()
-
-        random_msg = Buffer()
-        random_msg.push_be(content)
-
-        type_ = random_msg.pull_u8()
-
-        if type_ != 0x06:
-            raise Exception(f'Expected random msg, but got {type_}')
-
-        return random_msg.pull_all_be()
-
-    def __send_prov_data(self, prov_data: ProvisioningData):
-        pass
-
-    def __close_link(self):
-        self.__link.close_reason = b'\x00'
-        self.__gprov_layer.close(self.__link)
+    def __aes_cmac(self, key, random, auth):
+        raise NotImplementedError

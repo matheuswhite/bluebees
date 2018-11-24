@@ -1,9 +1,8 @@
 from core.utils import threaded, timeit
 from core.link import Link
 from core.transaction import Transaction
-from layers.dongle import DongleDriver
 from threading import Event
-from time import time, sleep
+from time import sleep
 
 
 class TransactionAckTimeout(Exception):
@@ -14,7 +13,10 @@ class LinkAckTimeout(Exception):
     pass
 
 
-# TODO: Create a decorator to check if link is open on each method's step
+class DeviceCloseLink(Exception):
+    pass
+
+
 class Gprov:
 
     def __init__(self, dongle_driver, start_taks=True):
@@ -26,15 +28,21 @@ class Gprov:
         self.tr_ack_event = Event()
         self.link_ack_event = Event()
         self.link_close_event = Event()
+        self.link_close_event.set()
 
         self.tr_retransmit_delay = 0.5
         self.link_open_retransmit_delay = 0.5
+        self.clean_cache_delay = 35
 
         if start_taks:
             self.recv_task()
             self.clean_cache_task()
 
     def get_transaction(self):
+        if self.link_close_event.is_set():
+            self.link_close_event.clear()
+            raise DeviceCloseLink()
+
         while len(self.recv_transactions) == 0:
             pass
         tr = self.recv_transactions[0]
@@ -45,6 +53,9 @@ class Gprov:
         elapsed_time = 0
 
         while not self.tr_ack_event.is_set() and elapsed_time < 30:
+            if self.link_close_event.is_set():
+                self.link_close_event.clear()
+                raise DeviceCloseLink()
             self.__atomic_send(content=content, elapsed_time=elapsed_time)
 
         if elapsed_time >= 30:
@@ -74,30 +85,56 @@ class Gprov:
             return
 
         self.driver.send(2, 20, self.link.get_adv_header() + b'\x0b' + reason)
+        self.link.close_reason = reason
         self.link.is_open = False
 
     @threaded
     def recv_task(self):
-        pass
+        tr = Transaction()
+        dev_link = Link(self.link.link_id)
+
+        while True:
+            msg = self.driver.recv('prov')
+            link_id = int.from_bytes(msg[0:4], 'big')
+            dev_tr_number = msg[5]
+            segment = msg[5:]
+
+            if segment[0] == 0x0b:
+                self.link.is_open = False
+                self.link.close_reason = segment[1]
+                self.link_close_event.set()
+                continue
+            if segment[0] == 0x07:
+                self.link_ack_event.set()
+                continue
+            if segment == 0x01:
+                self.tr_ack_event.set()
+                continue
+
+            if self.link.link_id != link_id:
+                continue
+            if dev_link.device_transaction_number != dev_tr_number:
+                print(f'Wrong device number. Received {dev_tr_number} instead of {dev_link.device_transaction_number}')
+
+            tr.add_recv_segment(segment)
+            transaction, _ = tr.get_recv_transaction()
+            if transaction is None:
+                continue
+            if transaction in self.cache:
+                continue
+            self.cache.append(transaction)
+            self.recv_transactions.append(transaction)
+            tr = Transaction()
+            dev_link.increment_device_transaction_number()
 
     @threaded
     def clean_cache_task(self):
-        pass
+        while True:
+            sleep(self.clean_cache_delay)
+            self.cache = []
 
     def send_transaction_ack(self):
         self.driver.send(2, 20, self.link.get_adv_header() + b'\x01')
-
-    def check_link_close(self):
-        # used in @ref recv_task
-        pass
-
-    def check_link_ack(self):
-        # used in @ref recv_task
-        pass
-
-    def check_transaction_ack(self):
-        # used in @ref recv_task
-        pass
 
     @timeit
     def __atomic_send(self, **kwargs):
