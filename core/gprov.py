@@ -17,6 +17,7 @@ class DeviceCloseLink(Exception):
     pass
 
 
+# TODO: Comment the code
 class Gprov:
 
     def __init__(self, dongle_driver, start_taks=True):
@@ -120,6 +121,9 @@ class Gprov:
             transaction, _ = tr.get_recv_transaction()
             if transaction is None:
                 continue
+
+            self.send_transaction_ack(dev_link)
+
             if transaction in self.cache:
                 continue
             self.cache.append(transaction)
@@ -133,8 +137,8 @@ class Gprov:
             sleep(self.clean_cache_delay)
             self.cache = []
 
-    def send_transaction_ack(self):
-        self.driver.send(2, 20, self.link.get_adv_header() + b'\x01')
+    def send_transaction_ack(self, link: Link):
+        self.driver.send(2, 20, link.get_adv_header() + b'\x01')
 
     @timeit
     def __atomic_send(self, **kwargs):
