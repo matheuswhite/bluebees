@@ -3,7 +3,11 @@ from core.utils import threaded
 from time import sleep
 from data_structs.buffer import Buffer
 from dataclasses import dataclass
+from core.log import Log
 import base64
+
+
+log = Log('Dongle')
 
 
 class MaxTriesException(Exception):
@@ -18,10 +22,15 @@ class DongleData:
 
 
 def decode_dongle_message(buffer: Buffer):
+    parts = buffer.buffer_be().split(b' ')
+    if len(parts) != 3:
+        return None
+
     at_symbol = buffer.pull_u8()
     if at_symbol != b'@':
-        print('Exception decode dongle message')
-        raise Exception('Dongle messages must start with @ symbol')
+        log.err(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
+        # print(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
+        # raise Exception('Dongle messages must start with @ symbol')
 
     type_ = b''
     byte = buffer.pull_u8()
@@ -40,6 +49,10 @@ def decode_dongle_message(buffer: Buffer):
     while byte != b'\n':
         address += byte
         byte = buffer.pull_u8()
+
+    if type_ != b'beacon':
+        log.log(f'Content: {base64.b64decode(content_b64)}')
+        # print(f'Content: {base64.b64decode(content_b64)}')
 
     return DongleData(type_.decode('utf-8'), base64.b64decode(content_b64), address)
 

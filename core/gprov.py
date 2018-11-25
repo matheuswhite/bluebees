@@ -3,6 +3,10 @@ from core.link import Link
 from core.transaction import Transaction
 from threading import Event
 from time import sleep
+from core.log import Log
+
+
+log = Log('Gprov')
 
 
 class TransactionAckTimeout(Exception):
@@ -126,6 +130,8 @@ class Gprov:
 
             if transaction in self.cache:
                 continue
+
+            log.log('Recv: ' + transaction.decode('utf-8'))
             self.cache.append(transaction)
             self.recv_transactions.append(transaction)
             tr = Transaction()
@@ -144,10 +150,12 @@ class Gprov:
     def __atomic_send(self, **kwargs):
         tr = Transaction(kwargs['content'])
         for seg in tr.segments():
+            log.log('Send: ' + (self.link.get_adv_header() + seg).decode('utf-8'))
             self.driver.send(2, 20, self.link.get_adv_header() + seg)
         sleep(self.tr_retransmit_delay)
 
     @timeit
     def __atomic_link_open(self, **kwargs):
+        log.log('Send: ' + (self.link.get_adv_header() + b'\x03' + self.link.device_uuid).decode('utf-8'))
         self.driver.send(2, 20, self.link.get_adv_header() + b'\x03' + self.link.device_uuid)
         sleep(self.link_open_retransmit_delay)
