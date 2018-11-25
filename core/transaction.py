@@ -1,6 +1,9 @@
 from core.utils import crc8
+from core.log import Log
 
 MAX_MTU = 24
+
+log = Log('Transaction')
 
 
 class Transaction:
@@ -49,8 +52,9 @@ class Transaction:
     def get_recv_transaction(self):
         try:
             payload = b''
-            for x in range(self.recv_medata['n_segments']):
+            for x in range(self.recv_medata['n_segments']+1):
                 payload += self.all_segments[x]
+                log.dbg(f'Payload: {payload}')
 
             if len(payload) != self.recv_medata['total_length']:
                 return None, 'length_wrong'
@@ -59,6 +63,6 @@ class Transaction:
             if fcs_calc != self.recv_medata['fcs']:
                 return None, 'fcs_wrong'
 
-            return payload
+            return payload, 'none'
         except KeyError:
             return None, 'n_segments_wrong'

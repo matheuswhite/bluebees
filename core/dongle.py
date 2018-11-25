@@ -8,6 +8,7 @@ import base64
 
 
 log = Log('Dongle')
+log.disable()
 
 
 class MaxTriesException(Exception):
@@ -29,6 +30,7 @@ def decode_dongle_message(buffer: Buffer):
     at_symbol = buffer.pull_u8()
     if at_symbol != b'@':
         log.err(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
+        return None
         # print(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
         # raise Exception('Dongle messages must start with @ symbol')
 
@@ -51,7 +53,7 @@ def decode_dongle_message(buffer: Buffer):
         byte = buffer.pull_u8()
 
     if type_ != b'beacon':
-        log.log(f'Content: {base64.b64decode(content_b64)}')
+        log.dbg(f'Content: {base64.b64decode(content_b64)}')
         # print(f'Content: {base64.b64decode(content_b64)}')
 
     return DongleData(type_.decode('utf-8'), base64.b64decode(content_b64), address)
@@ -121,10 +123,14 @@ class DongleDriver:
 
                 dongle_data = decode_dongle_message(buffer)
 
+                if dongle_data is None:
+                    continue
+
                 if len(self.cache['adv']) > 20:
                     self.cache['adv'].clear_all()
 
                 if self.cache['adv'].push(dongle_data):
-                    self.cache[dongle_data.type_].push(dongle_data.content)
+                    if self.cache[dongle_data.type_] is not None:
+                        self.cache[dongle_data.type_].push(dongle_data.content)
         finally:
             self.__dongle_communication_task_en = False

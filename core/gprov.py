@@ -33,10 +33,9 @@ class Gprov:
         self.tr_ack_event = Event()
         self.link_ack_event = Event()
         self.link_close_event = Event()
-        self.link_close_event.set()
 
-        self.tr_retransmit_delay = 0.5
-        self.link_open_retransmit_delay = 0.5
+        self.tr_retransmit_delay = 3
+        self.link_open_retransmit_delay = 3
         self.clean_cache_delay = 35
 
         if start_taks:
@@ -57,16 +56,18 @@ class Gprov:
     def send_transaction(self, content: bytes):
         elapsed_time = 0
 
+        log.log('Sending transaction...')
         while not self.tr_ack_event.is_set() and elapsed_time < 30:
+            self.__atomic_send(content=content, elapsed_time=elapsed_time)
             if self.link_close_event.is_set():
                 self.link_close_event.clear()
                 raise DeviceCloseLink()
-            self.__atomic_send(content=content, elapsed_time=elapsed_time)
 
         if elapsed_time >= 30:
             self.close_link(b'\x01')
             raise TransactionAckTimeout()
 
+        log.succ('Transaction ack received')
         self.tr_ack_event.clear()
 
     def open_link(self, device_uuid: bytes):
@@ -76,12 +77,14 @@ class Gprov:
         elapsed_time = 0
         self.link.device_uuid = device_uuid
 
+        log.log('Sending open...')
         while not self.link_ack_event.is_set() and elapsed_time < 30:
             self.__atomic_link_open(elapsed_time=elapsed_time)
 
         if elapsed_time >= 30:
             raise LinkAckTimeout()
 
+        log.succ('Ack received')
         self.link_ack_event.clear()
         self.link.is_open = True
 
@@ -89,7 +92,7 @@ class Gprov:
         if not self.link.is_open:
             return
 
-        self.driver.send(2, 20, self.link.get_adv_header() + b'\x0b' + reason)
+        self.driver.send(0, 20, self.link.get_adv_header() + b'\x0b' + reason)
         self.link.close_reason = reason
         self.link.is_open = False
 
@@ -99,31 +102,41 @@ class Gprov:
         dev_link = Link(self.link.link_id)
 
         while True:
+            log.dbg('Recv msgs...')
             msg = self.driver.recv('prov')
             link_id = int.from_bytes(msg[0:4], 'big')
-            dev_tr_number = msg[5]
+            dev_tr_number = msg[4]
             segment = msg[5:]
+
+            # log.dbg(f'Link_id: {msg[0:4]}, dev_tr_num: {msg[4]}, seg: {segment}')
 
             if segment[0] == 0x0b:
                 self.link.is_open = False
                 self.link.close_reason = segment[1]
                 self.link_close_event.set()
                 continue
-            if segment[0] == 0x07:
+            elif segment[0] == 0x07:
+                # log.succ('Link Ack Recognized')
                 self.link_ack_event.set()
                 continue
-            if segment == 0x01:
+            elif segment[0] == 0x01:
+                # log.succ('Tr Ack Recognized')
                 self.tr_ack_event.set()
                 continue
 
             if self.link.link_id != link_id:
                 continue
+            else:
+                log.dbg('link same')
+
             if dev_link.device_transaction_number != dev_tr_number:
-                print(f'Wrong device number. Received {dev_tr_number} instead of {dev_link.device_transaction_number}')
+                log.wrn(f'Wrong device number. Received {dev_tr_number} instead of '
+                        f'{dev_link.device_transaction_number}')
 
             tr.add_recv_segment(segment)
-            transaction, _ = tr.get_recv_transaction()
+            transaction, err_msg = tr.get_recv_transaction()
             if transaction is None:
+                log.wrn(f'Err msg: {err_msg}')
                 continue
 
             self.send_transaction_ack(dev_link)
@@ -131,7 +144,6 @@ class Gprov:
             if transaction in self.cache:
                 continue
 
-            log.log('Recv: ' + transaction.decode('utf-8'))
             self.cache.append(transaction)
             self.recv_transactions.append(transaction)
             tr = Transaction()
@@ -150,12 +162,12 @@ class Gprov:
     def __atomic_send(self, **kwargs):
         tr = Transaction(kwargs['content'])
         for seg in tr.segments():
-            log.log('Send: ' + (self.link.get_adv_header() + seg).decode('utf-8'))
-            self.driver.send(2, 20, self.link.get_adv_header() + seg)
+            log.log(b'Send: ' + self.link.get_adv_header() + seg)
+            self.driver.send(0, 20, self.link.get_adv_header() + seg)
         sleep(self.tr_retransmit_delay)
 
     @timeit
     def __atomic_link_open(self, **kwargs):
-        log.log('Send: ' + (self.link.get_adv_header() + b'\x03' + self.link.device_uuid).decode('utf-8'))
-        self.driver.send(2, 20, self.link.get_adv_header() + b'\x03' + self.link.device_uuid)
+        log.log(b'Send: ' + self.link.get_adv_header() + b'\x03' + self.link.device_uuid)
+        self.driver.send(0, 20, self.link.get_adv_header() + b'\x03' + self.link.device_uuid)
         sleep(self.link_open_retransmit_delay)
