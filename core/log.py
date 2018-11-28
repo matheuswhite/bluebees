@@ -24,24 +24,24 @@ class Log:
     def log(self, message):
         if self.level >= LogLevel.Log.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
-            print(colored(f'[{time}][{self.module_name}]{message}', 'white'))
+            print(colored(f'[{time}][{self.module_name}] {message}', 'white'))
 
     def wrn(self, message):
         if self.level >= LogLevel.Wrn.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
-            print(colored(f'[{time}][{self.module_name}]{message}', 'yellow'))
+            print(colored(f'[{time}][{self.module_name}] {message}', 'yellow'))
 
     def err(self, message):
         if self.level >= LogLevel.Err.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
-            print(colored(f'[{time}][{self.module_name}]{message}', 'red'))
+            print(colored(f'[{time}][{self.module_name}] {message}', 'red'))
 
     def succ(self, message):
         if self.level >= LogLevel.Succ.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
-            print(colored(f'[{time}][{self.module_name}]{message}', 'green'))
+            print(colored(f'[{time}][{self.module_name}] {message}', 'green'))
 
     def dbg(self, message):
         if self.level >= LogLevel.Dbg.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
-            print(colored(f'[{time}][{self.module_name}]{message}', 'blue'))
+            print(colored(f'[{time}][{self.module_name}] {message}', 'blue'))
