@@ -4,6 +4,13 @@ hierarchical prompt usage example
 """
 from PyInquirer import style_from_dict, Token, prompt
 
+devs = [
+    '0001',
+    '0002',
+    '0003',
+    '0004'
+]
+
 style = style_from_dict({
     Token.Separator: '#6C6C6C',
     Token.QuestionMark: '#0080FF bold',
@@ -19,35 +26,42 @@ commands_prompt = {
     'type': 'list',
     'name': 'command',
     'message': 'Choose command:',
-    'choices': ['Create', 'List', 'Name', 'Detail']
+    'choices': ['Create', 'Name', 'Bind Devices', 'List', 'Detail']
 }
 
 create_prompt = {
     'type': 'list',
     'name': 'Create',
     'message': 'What you want create?',
-    'choices': ['Node', 'App', 'Net']
-}
-
-list_prompt = {
-    'type': 'list',
-    'name': 'List',
-    'message': 'What you want list?',
-    'choices': ['Devices', 'Nodes', 'Apps', 'Nets', 'All']
+    'choices': ['Net', 'App', 'Node']
 }
 
 name_prompt = {
     'type': 'list',
     'name': 'Name',
     'message': 'What you want name?',
-    'choices': ['Device', 'Node', 'App', 'Net']
+    'choices': ['Net', 'App', 'Node', 'Devices']
+}
+
+bind_devices_prompt = {
+    'type': 'list',
+    'name': 'Bind Devices',
+    'message': 'What is the first device you want bind?',
+    'choices': devs
+}
+
+list_prompt = {
+    'type': 'list',
+    'name': 'List',
+    'message': 'What you want list?',
+    'choices': ['Net', 'App', 'Node', 'Devices', 'All']
 }
 
 detail_prompt = {
     'type': 'list',
     'name': 'Detail',
     'message': 'What you want name?',
-    'choices': ['Device', 'Node', 'App', 'Net']
+    'choices': ['Net', 'App', 'Node', 'Devices']
 }
 
 sub_cmds = {
@@ -55,6 +69,7 @@ sub_cmds = {
     list_prompt['name']: list_prompt,
     name_prompt['name']: name_prompt,
     detail_prompt['name']: detail_prompt,
+    bind_devices_prompt['name']: bind_devices_prompt
 }
 
 if __name__ == '__main__':
