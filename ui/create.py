@@ -1,4 +1,8 @@
 from ui.ui import Command, SingleQuestion, Menu, Questions
+from model.node import Node
+from model.app import App
+from model.net import Net
+import model.database
 
 
 class CreateNet(Command):
@@ -8,11 +12,17 @@ class CreateNet(Command):
 
         self.parent = parent
         self.answer = None
+        self.net_cnt = 0
+        self.parent.questions[0].default_option = f'net{self.net_cnt}'
 
     def run(self):
         answers = [q.answer for q in self.parent.questions]
-        for i in range(len(answers)-1):
-            print(f'Answer {i}: {answers[i]}')
+        net = Net(answers[0], answers[1])
+        model.database.nets.add(net)
+        print('New net created!')
+        print(net)
+        self.net_cnt += 1
+        self.parent.questions[0].default_option = f'net{self.net_cnt}'
 
 
 class CreateApp(Command):
@@ -22,11 +32,17 @@ class CreateApp(Command):
 
         self.parent = parent
         self.answer = None
+        self.app_cnt = 0
+        self.parent.questions[0].default_option = f'app{self.app_cnt}'
 
     def run(self):
         answers = [q.answer for q in self.parent.questions]
-        for i in range(len(answers)-1):
-            print(f'Answer {i}: {answers[i]}')
+        app = App(answers[0], answers[1])
+        model.database.apps.add(app)
+        print('New app created!')
+        print(app)
+        self.app_cnt += 1
+        self.parent.questions[0].default_option = f'app{self.app_cnt}'
 
 
 class CreateNode(Command):
@@ -36,15 +52,17 @@ class CreateNode(Command):
 
         self.parent = parent
         self.answer = None
-        self.node_counter = 0
-        self.parent.questions[0].default_option = f'node{self.node_counter}'
+        self.node_cnt = 0
+        self.parent.questions[0].default_option = f'node{self.node_cnt}'
 
     def run(self):
         answers = [q.answer for q in self.parent.questions]
-        for i in range(len(answers)-1):
-            print(f'Answer {i}: {answers[i]}')
-        self.node_counter += 1
-        self.parent.questions[0].default_option = f'node{self.node_counter}'
+        node = Node(answers[0], answers[1])
+        model.database.nodes.add(node)
+        print('New node created!')
+        print(node)
+        self.node_cnt += 1
+        self.parent.questions[0].default_option = f'node{self.node_cnt}'
 
 
 _create_net_menu = Questions('Net')
@@ -62,7 +80,7 @@ _create_node_menu.add_question(SingleQuestion('Name', 'Enter a node name:'))
 _create_node_menu.add_question(SingleQuestion('Address', 'Enter the node address:'))
 _create_node_menu.add_question(CreateNode('Create Node', _create_node_menu))
 
-create_menu = Menu('Create', 'What you want create?')
+create_menu = Menu('Create', 'What you want create?', index=1)
 create_menu.add_choice(_create_net_menu)
 create_menu.add_choice(_create_app_menu)
 create_menu.add_choice(_create_node_menu)
