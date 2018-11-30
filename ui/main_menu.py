@@ -6,7 +6,7 @@ from ui.rename import rename_menu
 from ui.detail import detail_menu
 
 
-main_menu = Menu('main', 'Choose a command:', index=0, has_back_cmd=False)
+main_menu = Menu('main', 'Choose a command:', has_back_cmd=False)
 main_menu.add_choice(create_menu)
 main_menu.add_choice(rename_menu)
 main_menu.add_choice(list_menu)

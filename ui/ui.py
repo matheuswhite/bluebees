@@ -6,6 +6,7 @@ class UiElement:
 
     def __init__(self, name):
         self.name = name
+        self.parent = None
 
     def run(self):
         pass
@@ -31,20 +32,28 @@ class BackCommand(UiElement):
 
 class SingleQuestion(UiElement):
 
-    def __init__(self, name, message, default_option=None, style=None):
+    def __init__(self, name, message, index, max_questions=None, default_option=None, validate=None,
+                 validate_message='Wrong input', style=None):
         super().__init__(name)
 
         self.message = message
         self.default_option = default_option
+        self.validate = validate
+        self.validate_message = validate_message
         self.style = style if style else default_style
         self.answer = None
+        self.index = index
+        self.max_questions = max_questions
 
     def run(self):
-        message = f'{self.message} ({self.default_option})' if self.default_option else self.message
+        message = self.message
         question = {
             'type': 'input',
+            'qmark': f'[{self.index}/{self.max_questions}]' if self.max_questions is not None else f'[{self.index}]',
             'name': self.name,
             'message': message,
+            'default': str(self.default_option) if self.default_option else '',
+            'validate': lambda val: self.validate(val) or self.validate_message if self.validate else True
         }
         self.answer = prompt(question, style=self.style)
         self.answer = list(self.answer.values())[0]
@@ -73,7 +82,7 @@ class Questions(UiElement):
 
 class Menu(UiElement):
 
-    def __init__(self, name: str, message: str, index: int=None, style=None, has_back_cmd=True):
+    def __init__(self, name: str, message: str, style=None, has_back_cmd=True):
         super().__init__(name)
 
         self.message = message
@@ -81,7 +90,6 @@ class Menu(UiElement):
         self.choices = []
         self.answer = None
         self._children = {}
-        self.index = str(index) if index is not None else '?'
         self.has_back_cmd = has_back_cmd
         if self.has_back_cmd:
             self.add_choice(BackCommand('Back'))
@@ -93,10 +101,19 @@ class Menu(UiElement):
         else:
             self.choices.append(choice.name)
 
+    def get_qmark(self):
+        parent = self.parent
+        qmark = '[' + self.name
+        while parent is not None:
+            qmark += '/' + self.parent.name
+            parent = parent.parent
+        qmark += ']'
+        return qmark
+
     def _atomic_run(self):
         question = {
             'type': 'list',
-            'qmark': self.index,
+            'qmark': self.get_qmark(),
             'name': self.name,
             'message': self.message,
             'choices': self.choices

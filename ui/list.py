@@ -62,7 +62,7 @@ class ListDevices(Command):
                 print(f'\t{d}')
 
 
-list_menu = Menu('List', 'What you want list?', index=1)
+list_menu = Menu('List', 'What you want list?')
 list_menu.add_choice(ListNet('Nets'))
 list_menu.add_choice(ListApps('Apps'))
 list_menu.add_choice(ListNodes('Nodes'))

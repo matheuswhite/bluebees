@@ -1,16 +1,17 @@
 from ui.ui import Questions, SingleQuestion, Menu, BackCommand
-import model.database
+from model.database import nets, apps, nodes, devices, Storage
 
 
 # TODO: check if the name already exist in storage
 class Rename(Questions):
 
-    def __init__(self, name, storage: model.database.Storage, parent):
+    def __init__(self, name, storage: Storage, parent):
         super().__init__(name)
 
         self.storage = storage
         self.parent = parent
-        self.question = SingleQuestion('Rename Single Question', f'Type \'{self.name}\' new name:')
+        self.question = SingleQuestion('Rename Single Question', f'Type \'{self.name}\' new name:', index=1,
+                                       max_questions=1)
 
     def run(self):
         self.question.run()
@@ -22,8 +23,8 @@ class Rename(Questions):
 
 class RenameMenu(Menu):
 
-    def __init__(self, name, message, index, storage):
-        super().__init__(name, message, index=index)
+    def __init__(self, name, message, storage):
+        super().__init__(name, message)
 
         self.storage = storage
         self.has_back_cmd = False
@@ -42,8 +43,8 @@ class RenameMenu(Menu):
         super().run()
 
 
-rename_menu = Menu('Rename', 'What you want rename?', index=1)
-rename_menu.add_choice(RenameMenu('Net', 'What net you want rename?', index=2, storage=model.database.nets))
-rename_menu.add_choice(RenameMenu('App', 'What app you want rename?', index=2, storage=model.database.apps))
-rename_menu.add_choice(RenameMenu('Node', 'What node you want rename?', index=2, storage=model.database.nodes))
-rename_menu.add_choice(RenameMenu('Device', 'What device you want rename?', index=2, storage=model.database.devices))
+rename_menu = Menu('Rename', 'What you want rename?')
+rename_menu.add_choice(RenameMenu('Net', 'What net you want rename?', storage=nets))
+rename_menu.add_choice(RenameMenu('App', 'What app you want rename?', storage=apps))
+rename_menu.add_choice(RenameMenu('Node', 'What node you want rename?', storage=nodes))
+rename_menu.add_choice(RenameMenu('Device', 'What device you want rename?', storage=devices))

@@ -3,22 +3,31 @@
 class Storage:
 
     def __init__(self):
-        self.__list = {}
+        self.__coll = {}
 
-    def add(self, element):
-        self.__list[element.name] = element
+    def add(self, other):
+        self.__coll[other.name] = other
+
+    def delete(self, item_name):
+        del self.__coll[item_name]
 
     def get_all(self):
-        return self.__list.values()
+        return self.__coll.values()
 
-    def get(self, index):
-        return self.__list[index]
+    def get(self, item_name):
+        return self.__coll[item_name]
 
-    def update_name(self, index, new_element):
-        element = self.__list[index]
-        element.name = new_element
-        del self.__list[index]
-        self.add(element)
+    def update_name(self, old_name, new_name):
+        item = self.__coll[old_name]
+        item.name = new_name
+        self.delete(old_name)
+        self.add(item)
+
+    def exist(self, item_name):
+        for k in self.__coll.keys():
+            if k == item_name:
+                return True
+        return False
 
 
 nets = Storage()

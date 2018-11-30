@@ -49,6 +49,6 @@ class Credits(Command):
         print('\t\t\t\tMade by: Matheus White\n')
 
 
-about_menu = Menu('About', 'What you want know?', index=1)
+about_menu = Menu('About', 'What you want know?')
 about_menu.add_choice(License('License'))
 about_menu.add_choice(Credits('Credits'))

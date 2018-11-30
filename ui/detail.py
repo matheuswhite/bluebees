@@ -1,10 +1,10 @@
 from ui.ui import Command, Menu, BackCommand
-import model.database
+from model.database import nets, apps, nodes, devices, Storage
 
 
 class Detail(Command):
 
-    def __init__(self, name, storage: model.database.Storage, parent):
+    def __init__(self, name, storage: Storage, parent):
         super().__init__(name)
 
         self.storage = storage
@@ -19,8 +19,8 @@ class Detail(Command):
 
 class DetailMenu(Menu):
 
-    def __init__(self, name, message, index, storage):
-        super().__init__(name, message, index=index)
+    def __init__(self, name, message, storage):
+        super().__init__(name, message)
 
         self.storage = storage
         self.has_back_cmd = False
@@ -39,8 +39,8 @@ class DetailMenu(Menu):
         super().run()
 
 
-detail_menu = Menu('Detail', 'What you want detail?', index=1)
-detail_menu.add_choice(DetailMenu('Net', 'What net you want detail?', index=2, storage=model.database.nets))
-detail_menu.add_choice(DetailMenu('App', 'What app you want detail?', index=2, storage=model.database.apps))
-detail_menu.add_choice(DetailMenu('Node', 'What node you want detail?', index=2, storage=model.database.nodes))
-detail_menu.add_choice(DetailMenu('Device', 'What device you want detail?', index=2, storage=model.database.devices))
+detail_menu = Menu('Detail', 'What you want detail?')
+detail_menu.add_choice(DetailMenu('Net', 'What net you want detail?', storage=nets))
+detail_menu.add_choice(DetailMenu('App', 'What app you want detail?', storage=apps))
+detail_menu.add_choice(DetailMenu('Node', 'What node you want detail?', storage=nodes))
+detail_menu.add_choice(DetailMenu('Device', 'What device you want detail?', storage=devices))
