@@ -79,7 +79,7 @@ class Menu(UiElement):
         self.message = message
         self.style = style if style else default_style
         self.choices = []
-        self._answer = None
+        self.answer = None
         self._children = {}
         self.index = str(index) if index is not None else '?'
         self.has_back_cmd = has_back_cmd
@@ -93,7 +93,7 @@ class Menu(UiElement):
         else:
             self.choices.append(choice.name)
 
-    def run(self):
+    def _atomic_run(self):
         question = {
             'type': 'list',
             'qmark': self.index,
@@ -101,10 +101,14 @@ class Menu(UiElement):
             'message': self.message,
             'choices': self.choices
         }
+        self.answer = prompt(question, style=self.style)
+        self.answer = list(self.answer.values())[0]
+        ui_element = self._children[self.answer]
+        print('\x1bc')
+        return ui_element
+
+    def run(self):
         is_back = None
         while is_back is None:
-            self._answer = prompt(question, style=self.style)
-            self._answer = list(self._answer.values())[0]
-            ui_element = self._children[self._answer]
-            print('\x1bc')
+            ui_element = self._atomic_run()
             is_back = ui_element.run()
