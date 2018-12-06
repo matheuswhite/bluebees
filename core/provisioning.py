@@ -6,7 +6,7 @@ from ecdsa import SigningKey, NIST256p
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import CMAC
-from model.database import nets
+from core.log import Log
 
 PROVISIONING_INVITE = 0x00
 PROVISIONING_CAPABILITIES = 0x01
@@ -22,6 +22,8 @@ PROVISIONING_FAILED = 0x09
 CLOSE_SUCCESS = b'\x00'
 CLOSE_TIMEOUT = b'\x01'
 CLOSE_FAIL = b'\x02'
+
+log = Log('Provisioning')
 
 
 class ProvisioningFail(Exception):
@@ -73,20 +75,31 @@ class ProvisioningLayer:
 
         return device
 
-    def provisioning_device(self, device_uuid: bytes, net_name: str):
+    def provisioning_device(self, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
+                            unicast_address: bytes):
+        log.log('Opening Link...')
         self.__gprov_layer.open_link(device_uuid)
+        log.log('Link Open')
 
         try:
+            log.log('Invitation Phase')
             self.__invitation_prov_phase()
+            log.log('Exchanging Public Keys Phase')
             self.__exchanging_pub_keys_prov_phase()
+            log.log('Authentication Phase')
             self.__authentication_prov_phase()
-            self.__send_data_prov_phase(net_name)
+            log.log('Send Data Phase')
+            self.__send_data_prov_phase(net_key, key_index, iv_index, unicast_address)
 
+            log.log('Closing Link...')
             self.__gprov_layer.close_link(CLOSE_SUCCESS)
+            log.log('Link Closed successful')
         except ProvisioningFail:
             self.__gprov_layer.close_link(CLOSE_FAIL)
+            log.log('Link Closed with fail')
         except ProvisioningTimeout:
             self.__gprov_layer.close_link(CLOSE_TIMEOUT)
+            log.log('Link Closed with timeout')
 
     # TODO: change this to get only device uuid
     @staticmethod
@@ -98,12 +111,14 @@ class ProvisioningLayer:
         send_buff = Buffer()
         send_buff.push_u8(PROVISIONING_INVITE)
         send_buff.push_u8(self.default_attention_duration)
+        log.dbg('Sending Invite PDU...')
         self.__gprov_layer.send_transaction(send_buff.buffer_be())
 
         self.__provisioning_invite = self.default_attention_duration
 
         # recv prov capabilities
         recv_buff = Buffer()
+        log.dbg('Receiving Capabilities PDU...')
         content = self.__gprov_layer.get_transaction()
         recv_buff.push_be(content)
         opcode = recv_buff.pull_u8()
@@ -123,6 +138,7 @@ class ProvisioningLayer:
         start_buff.push_u8(self.authentication_size)
         self.__provisioning_start = start_buff.buffer_be()[1:]
         self.__auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        log.dbg('Sending Start PDU...')
         self.__gprov_layer.send_transaction(start_buff.buffer_be())
 
         # gen priv_key and pub_key
@@ -133,10 +149,12 @@ class ProvisioningLayer:
         pub_key_buff.push_u8(PROVISIONING_PUBLIC_KEY)
         pub_key_buff.push_be(self.__pub_key['x'])
         pub_key_buff.push_be(self.__pub_key['y'])
+        log.dbg('Sending Public Keys PDU...')
         self.__gprov_layer.send_transaction(pub_key_buff.buffer_be())
 
         # recv device pub key
         recv_buff = Buffer()
+        log.dbg('Receiving Public Key PDU...')
         content = self.__gprov_layer.get_transaction()
         recv_buff.push_be(content)
         opcode = recv_buff.pull_u8()
@@ -167,17 +185,21 @@ class ProvisioningLayer:
         # send confirmation provisioner
         confirmation_provisioner = self.__aes_cmac(confirmation_key, self.__random_provisioner + self.__auth_value)
         buff.push_be(confirmation_provisioner)
+        log.dbg('Sending Confirmation PDU...')
         self.__gprov_layer.send_transaction(buff.buffer_be())
 
         # recv confiramtion device
+        log.dbg('Receiving Confirmation PDU...')
         recv_confirmation_device = self.__recv(opcode_verification=PROVISIONING_CONFIRMATION)
 
         # send random provisioner
         buff.clear()
         buff.push_be(self.__random_provisioner)
+        log.dbg('Sending Random PDU...')
         self.__gprov_layer.send_transaction(buff.buffer_be())
 
         # recv random device
+        log.dbg('Receiving Random PDU...')
         self.__random_device = self.__recv(opcode_verification=PROVISIONING_RANDOM)
 
         # check info
@@ -186,14 +208,12 @@ class ProvisioningLayer:
         if recv_confirmation_device != calc_confiramtion_device:
             raise ProvisioningFail()
 
-    def __send_data_prov_phase(self, net_name):
-        net = nets.get(net_name)
-
-        net_key = net.net_key
-        key_index = int(net.net_key_index).to_bytes(2, 'big')
+    def __send_data_prov_phase(self, net_key: bytes, key_index: int, iv_index: bytes, unicast_address: bytes):
+        net_key = net_key
+        key_index = int(key_index).to_bytes(2, 'big')
         flags = b'\x00'
-        iv_index = net.iv_index
-        unicast_address = net.next_unicast_address()
+        iv_index = iv_index
+        unicast_address = unicast_address
 
         provisioning_salt = self.__s1(self.__confirmation_salt + self.__random_provisioner + self.__random_device)
         session_key = self.__k1(self.__ecdh_secret['x'], provisioning_salt, b'prsk')
@@ -209,9 +229,11 @@ class ProvisioningLayer:
         buff = Buffer()
         buff.push_be(encrypted_provisioning_data)
         buff.push_be(provisioning_data_mic)
+        log.dbg('Sending Provisioning Data PDU...')
         self.__gprov_layer.send_transaction(buff.buffer_be())
 
-        self.__recv(opcode_verification=PROVISIONING_CONFIRMATION)
+        log.dbg('Receiving Complete PDU...')
+        self.__recv(opcode_verification=PROVISIONING_COMPLETE)
 
     def __recv(self, opcode_verification=None):
         buff = Buffer()
