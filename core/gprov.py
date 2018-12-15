@@ -4,7 +4,6 @@ from core.transaction import Transaction
 from threading import Event
 from time import sleep
 from core.log import Log
-from core.utils import yield_
 
 
 log = Log('Gprov')
@@ -22,10 +21,9 @@ class DeviceCloseLink(Exception):
     pass
 
 
-# TODO: Comment the code
 class Gprov:
 
-    def __init__(self, dongle_driver, start_taks=True):
+    def __init__(self, dongle_driver):
         self.driver = dongle_driver
         self.link = Link()
         self.cache = []
@@ -36,13 +34,9 @@ class Gprov:
         self.link_ack_event = Event()
         self.link_close_event = Event()
 
-        self.tr_retransmit_delay = 1
-        self.link_open_retransmit_delay = 1
+        self.tr_retransmit_delay = 3
+        self.link_open_retransmit_delay = 3
         self.clean_cache_delay = 30
-
-        if start_taks:
-            self.recv_task()
-            self.clean_cache_task()
 
     def get_transaction(self):
         if self.link_close_event.is_set():

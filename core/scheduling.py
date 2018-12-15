@@ -2,8 +2,7 @@ from collections import deque
 from time import time
 from dataclasses import dataclass
 from core.log import Log, LogLevel
-from typing import Any
-from core.utils import threaded
+from typing import List
 from threading import Event
 
 
@@ -20,74 +19,64 @@ def timer_task(timeout_, event: Event):
     event.set()
 
 
-@dataclass
-class Task:
-    name: str
-    start_time: float
-    elapsed_time: float
-    run: Any
-
-
 class Scheduler:
 
     def __init__(self):
         self.tasks = deque()
-        self.task_persistent = deque()
+        self.tasks_dependency = {}
+        self.tasks_status = {}
 
-    def new_task(self, name: str, run):
-        t = Task(name, 0, 0, run)
-        self.tasks.append(t)
-        self.task_persistent.append(t)
+    def new_task(self, name: str):
+        def wrap(func):
+            self.tasks.append((name, func()))
+            self.tasks_status[name] = 'running'
+            return func
+        return wrap
 
-    def get_task_metadata(self, name):
-        for t in self.task_persistent:
-            if t.name == name:
-                return t
+    def add_dependency(self, name: str, dependency: str):
+        self.tasks_dependency[name] = dependency
 
     def run(self):
         while self.tasks:
-            t = self.tasks.popleft()
+            # pop next task
+            task_name, task = self.tasks.popleft()
+
+            # check dependencies
+            if task_name in self.tasks_dependency:
+                dependency = self.tasks_dependency[task_name]
+                if self.tasks_status[dependency] == 'running':
+                    self.tasks.append((task_name, task))
+                    continue
+
             try:
-                ts = time()
-                log.dbg(f'Start task {t.name}')
-                next(t.run)
-                log.dbg(f'Yield task {t.name}')
-                te = time()
-                t.elapsed_time += te - ts
-                t.start_time = ts
-                self.tasks.append(t)
+                log.dbg(f'Start task')
+                next(task)
+                log.dbg(f'Yield task')
+                self.tasks.append((task_name, task))
             except StopIteration:
-                pass
+                self.tasks_status[task_name] = 'finished'
 
 
 scheduler = Scheduler()
 
+
 if __name__ == '__main__':
-    def countdown(n):
+
+    @scheduler.new_task('task_in')
+    def task_in():
+        n = 10
         while n > 0:
-            print(f'T-minus{n}')
+            print(f'Runing in task {n}')
             yield
             n -= 1
-        print('Blastoff!')
 
-    def countup(n):
-        x = 0
-        while x < n:
-            print(f'Counting up{x}')
+    @scheduler.new_task('task_out')
+    def task_out():
+        n = 5
+        while n > 0:
+            print(f'Task out executing {n}')
+            scheduler.add_dependency('task_out', 'task_in')
             yield
-            x += 1
+            n -= 1
 
-    timeout = Event()
-
-    scheduler.new_task('countup', countdown(10))
-    scheduler.new_task('countup2', countdown(5))
-    scheduler.new_task('timer', timer_task(10, timeout))
-    scheduler.new_task('countdown', countup(15))
     scheduler.run()
-
-    timeout.wait()
-
-    log.log(f'countup metadata {scheduler.get_task_metadata("countup")}')
-    log.log(f'countup2 metadata {scheduler.get_task_metadata("countup2")}')
-    log.log(f'countdown metadata {scheduler.get_task_metadata("countdown")}')
-    log.log(f'timer metadata {scheduler.get_task_metadata("timer")}')

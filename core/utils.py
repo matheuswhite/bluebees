@@ -69,7 +69,3 @@ def timeit(method):
         return result
 
     return timed
-
-
-def yield_():
-    sleep(0.001)
