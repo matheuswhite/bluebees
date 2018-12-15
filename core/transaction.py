@@ -1,9 +1,10 @@
 from core.utils import crc8
-from core.log import Log
+from core.log import Log, LogLevel
 
-MAX_MTU = 24
+MAX_MTU = 20 - 5
 
 log = Log('Transaction')
+log.level = LogLevel.Wrn.value
 
 
 class Transaction:
@@ -30,7 +31,7 @@ class Transaction:
 
                 yield segment
             else:
-                first_byte = int((index << 2) | 0x02)
+                first_byte = int((index << 2) | 0x02).to_bytes(1, 'big')
                 payload = self.content[0:MAX_MTU]
                 segment = first_byte + payload
 

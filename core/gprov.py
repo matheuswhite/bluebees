@@ -4,6 +4,7 @@ from core.transaction import Transaction
 from threading import Event
 from time import sleep
 from core.log import Log
+from core.utils import yield_
 
 
 log = Log('Gprov')
@@ -31,12 +32,13 @@ class Gprov:
         self.recv_transactions = []
 
         self.tr_ack_event = Event()
+        self.tr_ack_expected = 0x00
         self.link_ack_event = Event()
         self.link_close_event = Event()
 
-        self.tr_retransmit_delay = 3
-        self.link_open_retransmit_delay = 3
-        self.clean_cache_delay = 35
+        self.tr_retransmit_delay = 1
+        self.link_open_retransmit_delay = 1
+        self.clean_cache_delay = 30
 
         if start_taks:
             self.recv_task()
@@ -67,7 +69,7 @@ class Gprov:
             self.close_link(b'\x01')
             raise TransactionAckTimeout()
 
-        log.succ('Transaction ack received')
+        # log.succ('Transaction ack received')
         self.tr_ack_event.clear()
 
     def open_link(self, device_uuid: bytes):
@@ -114,40 +116,49 @@ class Gprov:
                 self.link.is_open = False
                 self.link.close_reason = segment[1]
                 self.link_close_event.set()
+                yield_()
                 continue
             elif segment[0] == 0x07:
                 # log.succ('Link Ack Recognized')
                 self.link_ack_event.set()
+                yield_()
                 continue
-            elif segment[0] == 0x01:
-                # log.succ('Tr Ack Recognized')
+            elif segment[0] == 0x01 and dev_tr_number == self.tr_ack_expected:
+                log.succ(f'Tr Ack Recognized: {dev_tr_number}/{self.tr_ack_expected}')
                 self.tr_ack_event.set()
+                yield_()
                 continue
 
-            if self.link.link_id != link_id:
-                continue
-            else:
-                log.dbg('link same')
+            # if self.link.link_id != link_id:
+            #     continue
+            # else:
+            #     log.dbg('link same')
 
-            if dev_link.device_transaction_number != dev_tr_number:
-                log.wrn(f'Wrong device number. Received {dev_tr_number} instead of '
-                        f'{dev_link.device_transaction_number}')
+            # if dev_link.device_transaction_number != dev_tr_number:
+            #     log.wrn(f'Wrong device number. Received {dev_tr_number} instead of '
+            #             f'{dev_link.device_transaction_number}')
+
+            log.dbg(b'Message received: ' + segment[5:])
 
             tr.add_recv_segment(segment)
             transaction, err_msg = tr.get_recv_transaction()
             if transaction is None:
                 log.wrn(f'Err msg: {err_msg}')
+                yield_()
                 continue
 
             self.send_transaction_ack(dev_link)
 
             if transaction in self.cache:
+                yield_()
                 continue
 
             self.cache.append(transaction)
             self.recv_transactions.append(transaction)
             tr = Transaction()
             dev_link.increment_device_transaction_number()
+
+            yield_()
 
     @threaded
     def clean_cache_task(self):
@@ -160,9 +171,10 @@ class Gprov:
 
     @timeit
     def __atomic_send(self, **kwargs):
+        self.tr_ack_expected = self.link.transaction_number
         tr = Transaction(kwargs['content'])
         for seg in tr.segments():
-            log.log(b'Send: ' + self.link.get_adv_header() + seg)
+            log.log(b'Header: ' + self.link.get_adv_header() + b', Send: ' + seg)
             self.driver.send(0, 20, self.link.get_adv_header() + seg)
         sleep(self.tr_retransmit_delay)
 

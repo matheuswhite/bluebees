@@ -7,7 +7,7 @@ from serial import Serial
 if __name__ == '__main__':
     ser = Serial()
     ser.baudrate = 115200
-    ser.port = '/dev/ttyACM0'
+    ser.port = '/dev/ttyACM1'
 
     driver = DongleDriver(ser)
     driver.dongle_communication_task()

@@ -3,12 +3,15 @@ from core.utils import threaded
 from time import sleep
 from data_structs.buffer import Buffer
 from dataclasses import dataclass
-from core.log import Log
+from core.log import Log, LogLevel
 import base64
+import binascii
 
 
 log = Log('Dongle')
-log.disable()
+log.level = LogLevel.Wrn.value
+
+MAX_MTU = 24
 
 
 class MaxTriesException(Exception):
@@ -31,8 +34,6 @@ def decode_dongle_message(buffer: Buffer):
     if at_symbol != b'@':
         log.err(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
         return None
-        # print(f'Exception decode dongle message {at_symbol}, {buffer.buffer_be()}')
-        # raise Exception('Dongle messages must start with @ symbol')
 
     type_ = b''
     byte = buffer.pull_u8()
@@ -54,7 +55,6 @@ def decode_dongle_message(buffer: Buffer):
 
     if type_ != b'beacon':
         log.dbg(f'Content: {base64.b64decode(content_b64)}')
-        # print(f'Content: {base64.b64decode(content_b64)}')
 
     return DongleData(type_.decode('utf-8'), base64.b64decode(content_b64), address)
 
@@ -85,8 +85,8 @@ class DongleDriver:
         return datas
 
     def send(self, xmit, int_ms, content: bytes):
-        if len(content) > 29:
-            raise Exception('Message length greater than 24 bytes')
+        if len(content) > MAX_MTU:
+            raise Exception('Message length greater than 29 bytes')
 
         content_b64 = base64.encodebytes(content).decode('utf-8')[:-1]
         msg = f'@prov {xmit} {int_ms} {content_b64}\r\n'.encode('utf-8')
@@ -121,7 +121,12 @@ class DongleDriver:
                 buffer = Buffer()
                 buffer.push_be(raw_msg)
 
-                dongle_data = decode_dongle_message(buffer)
+                dongle_data = None
+
+                try:
+                    dongle_data = decode_dongle_message(buffer)
+                except binascii.Error:
+                    pass
 
                 if dongle_data is None:
                     continue

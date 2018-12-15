@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from threading import Thread, Event
-from time import time
+from time import time, sleep
 
 
 # Thanks to @awesomebytes
@@ -69,3 +69,7 @@ def timeit(method):
         return result
 
     return timed
+
+
+def yield_():
+    sleep(0.001)

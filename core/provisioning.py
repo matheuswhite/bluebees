@@ -8,16 +8,16 @@ from Crypto.Random import get_random_bytes
 from Crypto.Hash import CMAC
 from core.log import Log
 
-PROVISIONING_INVITE = 0x00
-PROVISIONING_CAPABILITIES = 0x01
-PROVISIONING_START = 0x02
-PROVISIONING_PUBLIC_KEY = 0x03
-PROVISIONING_INPUT_COMPLETE = 0x04
-PROVISIONING_CONFIRMATION = 0x05
-PROVISIONING_RANDOM = 0x06
-PROVISIONING_DATA = 0x07
-PROVISIONING_COMPLETE = 0x08
-PROVISIONING_FAILED = 0x09
+PROVISIONING_INVITE = b'\x00'
+PROVISIONING_CAPABILITIES = b'\x01'
+PROVISIONING_START = b'\x02'
+PROVISIONING_PUBLIC_KEY = b'\x03'
+PROVISIONING_INPUT_COMPLETE = b'\x04'
+PROVISIONING_CONFIRMATION = b'\x05'
+PROVISIONING_RANDOM = b'\x06'
+PROVISIONING_DATA = b'\x07'
+PROVISIONING_COMPLETE = b'\x08'
+PROVISIONING_FAILED = b'\x09'
 
 CLOSE_SUCCESS = b'\x00'
 CLOSE_TIMEOUT = b'\x01'
@@ -123,6 +123,7 @@ class ProvisioningLayer:
         recv_buff.push_be(content)
         opcode = recv_buff.pull_u8()
         self.__provisioning_capabilities = recv_buff.buffer_be()
+        log.dbg(b'Opcode: ' + opcode)
         if opcode != PROVISIONING_CAPABILITIES:
             raise ProvisioningFail()
         self.__device_capabilities = Capabilities(recv_buff)
@@ -156,6 +157,7 @@ class ProvisioningLayer:
         recv_buff = Buffer()
         log.dbg('Receiving Public Key PDU...')
         content = self.__gprov_layer.get_transaction()
+        log.dbg('Public Key PDU Received')
         recv_buff.push_be(content)
         opcode = recv_buff.pull_u8()
         if opcode != PROVISIONING_PUBLIC_KEY:

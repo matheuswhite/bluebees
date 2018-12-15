@@ -5,7 +5,7 @@ from termcolor import colored
 
 class LogLevel(Enum):
     Dbg = 4,
-    Log = 3,
+    Inf = 3,
     Wrn = 2,
     Err = 1,
     Succ = 0,
@@ -22,7 +22,7 @@ class Log:
         self.is_disable = True
 
     def log(self, message):
-        if self.level >= LogLevel.Log.value and not self.is_disable:
+        if self.level >= LogLevel.Inf.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'white'))
 
