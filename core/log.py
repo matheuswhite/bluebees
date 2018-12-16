@@ -13,8 +13,8 @@ class LogLevel(Enum):
 
 class Log:
 
-    def __init__(self, module_name: str):
-        self.level = LogLevel.Dbg.value
+    def __init__(self, module_name: str, level=LogLevel.Dbg):
+        self.level = level
         self.module_name = module_name
         self.is_disable = False
 
@@ -22,26 +22,26 @@ class Log:
         self.is_disable = True
 
     def log(self, message):
-        if self.level >= LogLevel.Inf.value and not self.is_disable:
+        if self.level.value >= LogLevel.Inf.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'white'))
 
     def wrn(self, message):
-        if self.level >= LogLevel.Wrn.value and not self.is_disable:
+        if self.level.value >= LogLevel.Wrn.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'yellow'))
 
     def err(self, message):
-        if self.level >= LogLevel.Err.value and not self.is_disable:
+        if self.level.value >= LogLevel.Err.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'red'))
 
     def succ(self, message):
-        if self.level >= LogLevel.Succ.value and not self.is_disable:
+        if self.level.value >= LogLevel.Succ.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'green'))
 
     def dbg(self, message):
-        if self.level >= LogLevel.Dbg.value and not self.is_disable:
+        if self.level.value >= LogLevel.Dbg.value and not self.is_disable:
             time = strftime('%H:%M:%S', gmtime())
             print(colored(f'[{time}][{self.module_name}] {message}', 'blue'))
