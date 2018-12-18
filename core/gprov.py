@@ -4,14 +4,20 @@ from core.transaction import Transaction
 from threading import Event
 from time import sleep
 from core.log import Log
-from core.scheduling import scheduler, TaskTimer
+from core.scheduling import scheduler, Timer
 from core.utils import crc8
 from core.dongle import MAX_MTU
 from core.device_connection import DeviceConnection, Not4Me, ConnectionClose, AlreadyInCache, OpenAck, \
                                     TrAck, NotExpectedTrNumber, MessageDropped
+from enum import Enum
+from random import randint
 
 log = Log('Gprov')
 
+class RetStatus(Enum):
+    LinkOpenSuccessful=0
+    LinkOpenTimeout=1
+    LinkOpenFail=2
 
 class GenericProvisioner:
 
@@ -23,14 +29,6 @@ class GenericProvisioner:
         scheduler.spawn_task('_recv_task', self._recv_t())
 
 #region Tasks
-    def _ack_timer_t(self):
-        timer = TaskTimer()
-        timer.timeout = 30
-        while True:
-            scheduler.wait_timer('_ack_timer', timer)
-            yield 'timeout'
-            break
-
     def _recv_t(self):
         while self.is_alive:
             recv_message = self.driver.recv('prov')
@@ -45,37 +43,49 @@ class GenericProvisioner:
                     conn.add_recv_message(recv_message)
 
                 except Not4Me:
-                    pass
+                    log.dbg(f'Expected {conn.link_id} link_id, but received {recv_message[0:4]} link_id')
                 except ConnectionClose as ex:
                     log.err(f'Connection {conn.link_id} closed by device. Reason: {ex.reason}')
-                    conn.is_open = False
                     conn.is_alive = False
                     del self.connections[k]
                 except AlreadyInCache:
-                    pass
+                    log.dbg(f'Message already in cache. Message: {recv_message}')
                 except OpenAck:
-                    conn = True
+                    if conn.is_alive:
+                        conn.open_ack_evt.set()
+                        log.succ(f'Open ack successfull. Link_id: {conn.link_id}')
                 except TrAck:
-                    pass
+                    log.succ(f'Tr ack received. Tr number: {recv_message[4]}')
                 except NotExpectedTrNumber:
-                    pass
+                    log.dbg(f'Expected {conn.prov_tr_number} tr_number, but received {recv_message[4]} tr number')
                 except MessageDropped:
-                    pass
+                    log.wrn(f'Message was dropped because opcode is wrong. Message {recv_message}')
+                finally:
+                    yield
 
-    def open_connection_ts(self, dev_uuid: bytes, connection_id: int):
-        dev_conn = DeviceConnection(connection_id)
-        self.connections[connection_id] = dev_conn
+    def open_connection_t(self, dev_uuid: bytes, connection_id: int):
+        # check if connection already is open
+        if connection_id not in list(self.connections.keys()):
+            # save device connection
+            dev_conn = DeviceConnection(connection_id)
+            self.connections[connection_id] = dev_conn
 
-        message = dev_conn.get_header() + b'\x03' + dev_uuid
-        self.driver.send(2, 20, message)
+            # create message and send it
+            message = dev_conn.get_header() + b'\x03' + dev_uuid
+            self.driver.send(2, 20, message)
 
-        # spawn a timer
-        timer_status = []
-        scheduler.spawn_task(f'_ack_timer_t{connection_id}', self._ack_timer_t(), timer_status)
-
-        # wait ack response
-        while not self.connections[connection_id].is_open and 'timeout' not in timer_status:
+            # wait open ack
+            open_ack_timer = Timer(timeout=30)
+            scheduler.wait_event(f'open_connection{connection_id}', dev_conn.open_ack_evt, open_ack_timer)
             yield
+
+            if dev_conn.open_ack_evt.isSet() and open_ack_timer.te < open_ack_timer.timeout:
+                yield RetStatus.LinkOpenSuccessful
+            else:
+                log.err(f'Connection open fail. Link_id {conn.link_id}')
+                dev_conn.is_alive = False
+                del self.connections[connection_id]
+                yield RetStatus.LinkOpenTimeout
 #endregion
 
 #region Private
@@ -109,7 +119,7 @@ class GenericProvisioner:
 
         spawned_task_name = f'get_last_transaction_t{connection_id}'
         scheduler.spawn_task(spawned_task_name, conn.get_last_transaction_t(), ret_queue)
-        scheduler.set_dependency(invoker_name, spawned_task_name)
+        scheduler.wait_finish(invoker_name, spawned_task_name)
 
         return ret_queue
 
@@ -118,4 +128,6 @@ class GenericProvisioner:
 
         for msg in messages:
             self.driver.send(0, 20, msg)
+            delay = randint(20, 50) / 1000.0
+            sleep(delay)
 #endregion

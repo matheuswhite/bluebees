@@ -3,16 +3,10 @@ from time import time
 from threading import Event
 
 
-class TaskEvent:
+class Timer:
 
-    def __init__(self):
-        self.event = Event()
-
-
-class TaskTimer:
-
-    def __init__(self):
-        self.timeout = 0
+    def __init__(self, timeout: int):
+        self.timeout = timeout
         self.ts = 0
         self.te = 0
 
@@ -22,19 +16,11 @@ class Task:
     def __init__(self, name, ret_queue):
         self.name = name
         self.ret_queue = ret_queue
-        self.dependency = None
+        self.task_dependency = None
+        self.last_ret_queue_len = len(ret_queue)
         self.status = 'idle'
         self.event = None
         self.timer = None
-
-    def set_dependency(self, dependency):
-        self.dependency = dependency
-
-    def set_task_event(self, event: TaskEvent):
-        self.event = event
-
-    def set_task_timer(self, timer: TaskTimer):
-        self.timer = timer
 
 
 class Scheduler:
@@ -50,19 +36,43 @@ class Scheduler:
         self._append_job(name, func)
         self.tasks[name] = Task(name, ret_queue)
 
-    def set_dependency(self, name: str, dependency: str):
-        self.tasks[name].set_dependency(self.tasks[dependency])
-        self.tasks[name].status = 'wait_task'
+    def wait_finish(self, invoker_name: str, task_name: str, timer=None):
+        task = self.tasks[invoker_name]
+        if timer:
+            task.timer = timer
+            task.timer.ts = time()
+        task.task_dependency = self.tasks[task_name]
+        task.status = 'wait_finish'
 
-    def wait_event(self, name: str, event: TaskEvent):
-        event.ts = time()
-        self.tasks[name].set_task_event(event)
-        self.tasks[name].status = 'wait_event'
+    def wait_result(self, invoker_name: str, task_name: str, timer=None):
+        task = self.tasks[invoker_name]
+        if timer:
+            task.timer = timer
+            task.timer.ts = time()
+        task.task_dependency = self.tasks[task_name]
+        task.status = 'wait_result'
 
-    def wait_timer(self, name: str, timer: TaskTimer):
-        timer.ts = time()
-        self.tasks[name].set_task_timer(timer)
-        self.tasks[name].status = 'wait_timer'
+    def wait_event(self, invoker_name: str, event: Event, timer=None):
+        task = self.tasks[invoker_name]
+        if timer:
+            task.timer = timer
+            task.timer.ts = time()
+        task.event = event
+        task.status = 'wait_event'
+
+    def wait_timer(self, invoker_name: str, timer: Timer):
+        task = self.tasks[invoker_name]
+        task.timer = timer
+        task.timer.ts = time()
+        task.status = 'wait_timer'
+
+    def _tick_timer(self, task):
+        if task.timer:
+            now_time = time()
+            task.timer.te += now_time - task.timer.ts
+            task.timer.ts = now_time
+            if task.timer.te >= task.timer.timeout:
+                task.status = 'idle'
 
     def run(self):
         while self.jobs:
@@ -70,27 +80,30 @@ class Scheduler:
             job_name, job = self.jobs.popleft()
             task = self.tasks[job_name]
 
-            # check if job is waiting for other jobs
-            if task.status == 'wait_task' and task.dependency.status == 'finished':
+            # check if wait is timeout
+            if task.status in ['wait_finish', 'wait_result', 'wait_event', 'wait_timer']:
+                self._tick_timer(task)
+
+            # check if job is waiting for other jobs finish
+            if task.status == 'wait_finish' and task.task_dependency.status == 'finished':
                 task.status = 'idle'
+
+            # check if job is waiting for other jobs result
+            if task.status == 'wait_result':
+                ret_queue_len = len(task.task_dependency.ret_queue)
+                if ret_queue_len > 0 and task.task_dependency.last_ret_queue_len != ret_queue_len:
+                    task.task_dependency.last_ret_queue_len = ret_queue_len
+                    task.status = 'idle'
 
             # check if job is waiting a event
-            if task.status == 'wait_event' and task.event.event.isSet():
+            if task.status == 'wait_event' and task.event.isSet():
                 task.status = 'idle'
-
-            # check if a job is waiting a timer
-            if task.status == 'wait_timer':
-                now_time = time()
-                task.timer.te += now_time - task.timer.ts
-                task.timer.ts = now_time
-                if task.timer.te > task.timer.timeout:
-                    task.status = 'idle'
 
             if task.status == 'idle':
                 try:
                     task.status = 'running'
                     ret = next(job)
-                    if ret:
+                    if ret is not None:
                         task.ret_queue.append(ret)
                     if task.status == 'running':
                         task.status = 'idle'
@@ -109,62 +122,51 @@ if __name__ == '__main__':
     class Tester:
 
         def __init__(self):
-            self.evt = TaskEvent()
-            self.timer_ = TaskTimer()
-            self.timer_.timeout = 3
+            self.kill_event = Event()
+            self.timer_ = Timer(timeout=3)
             self.ret_queue = []
 
-            scheduler.spawn_task('task_wait_event', self.task_wait_event())
-            scheduler.spawn_task('task_dependency', self.task_dependency())
-            scheduler.spawn_task('task_wait_timer', self.task_wait_timer())
-            scheduler.spawn_task('task_with_return', self.task_with_return(), ret_queue=self.ret_queue)
+            scheduler.spawn_task('kill_at_t', self.kill_at_t(time=25))
+            scheduler.spawn_task('wait_timer_t', self.wait_timer_t(), self.ret_queue)
+            scheduler.spawn_task('wait_result_t', self.wait_result_t())
+            scheduler.spawn_task('wait_event_t', self.wait_event_t())
+            scheduler.spawn_task('wait_finish_t', self.wait_finish_t())
 
-        def task_set_event(self):
-            n = 10
-            while n > 0:
-                print(f'Running set event task {n}')
+        def wait_timer_t(self):
+            while not self.kill_event.isSet():
+                print('[1] waiting timer')
+                scheduler.wait_timer('wait_timer_t', self.timer_)
                 yield
-                n -= 1
-            self.evt.event.set()
+                print('[1] timeout')
+                yield self.timer_.te
+                self.timer_ = Timer(timeout=3)
 
-        def task_wait_event(self):
-            n = 5
-            scheduler.wait_event('task_wait_event', self.evt)
+        def wait_result_t(self):
+            while not self.kill_event.isSet():
+                print('[2] waiting result')
+                scheduler.wait_result('wait_result_t', 'wait_timer_t', Timer(timeout=4))
+                yield
+                print(f'[2] Timer te values: {self.ret_queue}')
+
+        def kill_at_t(self, time: int):
+            kill_timer = Timer(time)
+            scheduler.wait_timer('kill_at_t', kill_timer)
             yield
-            while n > 0:
-                print(f'Running wait event {n}')
-                yield
-                n -= 1
+            print('[3] kill all')
+            self.kill_event.set()
 
-        def task_dependency(self):
-            n = 5
-            scheduler.set_dependency('task_dependency', 'task_wait_event')
+        def wait_event_t(self):
+            print('[4] wait event')
+            scheduler.wait_event('wait_event_t', self.kill_event, Timer(timeout=30))
             yield
-            while n > 0:
-                print(f'Running dependency {n}')
-                yield
-                n -= 1
+            print('[4] wait event finish')
 
-        def task_wait_timer(self):
-            n = 5
-            scheduler.wait_timer('task_wait_timer', self.timer_)
+        def wait_finish_t(self):
+            print('[5] waiting finish')
+            scheduler.wait_finish('wait_finish_t', 'wait_event_t', Timer(timeout=31))
             yield
-            while n > 0:
-                print(f'Running wait timer {n}')
-                yield
-                n -= 1
-
-        def task_with_return(self):
-            n = 5
-            while n > 0:
-                print(f'Running with return {n}')
-                yield
-                n -= 1
-            yield 200
+            print('[5] wait finish done')
 
 
     tester = Tester()
-
-    scheduler.spawn_task('task_set_event', tester.task_set_event())
     scheduler.run()
-    print(tester.ret_queue)

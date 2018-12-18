@@ -1,6 +1,7 @@
-from core.scheduling import scheduler, TaskTimer
+from core.scheduling import scheduler, Timer
 from core.utils import crc8
 from core.dongle import MAX_MTU
+from threading import Event
 
 #region Exceptions
 class Not4Me(Exception):
@@ -41,16 +42,15 @@ class DeviceConnection:
         self.tr_len = 0
         self.segn = 0
         self.clear_cache_timeout = 30
-        self.is_open = False
         self.is_alive = True
+        self.open_ack_evt = Event()
 
         scheduler.spawn_task(f'_clear_cache_t{link_id}', self._clear_cache_t)
 
 #region Tasks
     def _clear_cache_t(self):
         while self.is_alive:
-            clear_timer = TaskTimer()
-            clear_timer.timeout = self.clear_cache_timeout
+            clear_timer = Timer(self.clear_cache_timeout)
             scheduler.wait_timer(f'_clear_cache_task{self.link_id}', clear_timer)
             yield
             self.cache = []
@@ -110,6 +110,7 @@ class DeviceConnection:
     def kill(self):
         self.is_alive = False
 
+    # TODO: Review add_recv_message
     def add_recv_message(self, content: bytes):
         if not self._is4me(content):
             raise Not4Me()
