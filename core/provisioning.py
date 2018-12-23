@@ -8,6 +8,10 @@ from Crypto.Random import get_random_bytes
 from Crypto.Hash import CMAC
 from core.log import Log
 
+from core.scheduling import scheduler, Timer
+from random import randint
+from core.gprov import GenericProvisioner, RetStatus
+
 PROVISIONING_INVITE = b'\x00'
 PROVISIONING_CAPABILITIES = b'\x01'
 PROVISIONING_START = b'\x02'
@@ -36,9 +40,16 @@ class ProvisioningTimeout(Exception):
 
 class ProvisioningLayer:
 
-    def __init__(self, gprov_layer, dongle_driver):
-        self.__gprov_layer = gprov_layer
-        self.__dongle_driver = dongle_driver
+    def __init__(self, gprov: GenericProvisioner, dongle_driver):
+        self.is_alive = True
+        self.scan_ret_queue = []
+        self.devices = []
+        self.gprov = gprov
+        self.dongle_driver = dongle_driver
+
+        # scheduler.spawn_task('_scan_t', self.scan_t(), self.scan_ret_queue)
+        # scheduler.spawn_task('_build_devices_t', self.build_devices_t())
+
         self.__device_capabilities = None
         self.__priv_key = None
         self.__pub_key = None
@@ -58,22 +69,109 @@ class ProvisioningLayer:
         self.authentication_action = 0x00
         self.authentication_size = 0x00
 
-    def scan(self, timeout=None):
-        device = None
+#region Task
+    def _scan_t(self):
+        while self.is_alive:
+            content = self.dongle_driver.recv('beacon')
+            device = self._process_beacon_content(content)
+            yield device
 
-        if timeout is not None:
-            scan_timeout_event = Event()
-            timer(timeout, scan_timeout_event)
-            while not scan_timeout_event.is_set():
-                content = self.__dongle_driver.recv('beacon', 1, 0.5)
-                if content is not None:
-                    device = self.__process_beacon_content(content)
-                    break
+    def _build_devices_t(self):
+        while self.is_alive:
+            scheduler.wait_result('_build_device_t', '_scan_t')
+            yield
+            dev = self.scan_ret_queue[0]
+            if dev not in self.devices:
+                self.devices.append(dev)
+                self.scan_ret_queue = self.scan_ret_queue[1:]
+    
+    def _invitation_phase_t(self, connection_id: int):
+        # send prov invite
+        invite_msg = PROVISIONING_INVITE
+        invite_msg += self.default_attention_duration
+        self.gprov.send_transaction(connection_id, invite_msg)
+        yield self.default_attention_duration
+
+        # recv prov capabilities
+        tr = self.gprov.get_transaction_s(f'_invitation_phase_t{connection_id}', connection_id)
+        yield
+
+        opcode = tr[0]
+        capabilities = tr[1:]
+        if opcode != PROVISIONING_CAPABILITIES:
+            yield 'provisioning fail'
         else:
-            content = self.__dongle_driver.recv('beacon')
-            device = self.__process_beacon_content(content)
+            yield capabilities
 
-        return device
+    def provisioning_device_t(self, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
+                                unicast_address: bytes):
+        provisioning_status = 'ok' # 'ok' | 'timeout' | 'fail'
+        
+        # connection open
+        if provisioning_status == 'ok':
+            ret = []
+            scheduler.spawn_task(f'open_connection_t{connection_id}', 
+                                self.gprov.open_connection_t(device_uuid, connection_id), ret)
+            self._wait_phase(connection_id, f'open_connection_t{connection_id}')
+            yield
+
+            if ret[0] == RetStatus.LinkOpenTimeout:
+                provisioning_status = 'timeout'
+        
+        # invitation phase
+        if provisioning_status == 'ok':
+            ret = []
+            scheduler.spawn_task(f'_invitation_phase_t{connection_id}', self._invitation_phase_t(), ret)
+            self._wait_phase(connection_id, f'_invitation_phase_t{connection_id}')
+            yield
+
+            if ret[0]
+
+        if provisioning_status == 'ok':
+
+
+
+        log.log('Opening Link...')
+        self.__gprov_layer.open_link(device_uuid)
+        log.log('Link Open')
+
+        try:
+            log.log('Invitation Phase')
+            self.__invitation_prov_phase()
+            log.log('Exchanging Public Keys Phase')
+            self.__exchanging_pub_keys_prov_phase()
+            log.log('Authentication Phase')
+            self.__authentication_prov_phase()
+            log.log('Send Data Phase')
+            self.__send_data_prov_phase(net_key, key_index, iv_index, unicast_address)
+
+            log.log('Closing Link...')
+            self.__gprov_layer.close_link(CLOSE_SUCCESS)
+            log.log('Link Closed successful')
+        except ProvisioningFail:
+            self.__gprov_layer.close_link(CLOSE_FAIL)
+            log.log('Link Closed with fail')
+        except ProvisioningTimeout:
+            self.__gprov_layer.close_link(CLOSE_TIMEOUT)
+            log.log('Link Closed with timeout')
+#endregion
+
+#region Private
+    # TODO: change this to get only device uuid
+    def _process_beacon_content(self, content: bytes):
+        if content:
+            return content.split(b' ')[1]
+
+    def _wait_phase(self, connection_id: int, phase: str):
+        scheduler.wait_finish(f'provisioning_device_t{connection_id}', phase)
+#endregion
+
+#region Public
+    def kill(self):
+        self.is_alive = False
+#endregion
+    
+
 
     def provisioning_device(self, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
                             unicast_address: bytes):
@@ -101,10 +199,7 @@ class ProvisioningLayer:
             self.__gprov_layer.close_link(CLOSE_TIMEOUT)
             log.log('Link Closed with timeout')
 
-    # TODO: change this to get only device uuid
-    @staticmethod
-    def __process_beacon_content(content: bytes):
-        return content.split(b' ')[1]
+    
 
     def __invitation_prov_phase(self):
         # send prov invite
