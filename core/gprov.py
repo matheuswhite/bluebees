@@ -4,32 +4,31 @@ from core.transaction import Transaction
 from threading import Event
 from time import sleep
 from core.log import Log
-from core.scheduling import scheduler, Timer
+from core.scheduling import scheduler, Task, TaskError
 from core.utils import crc8
 from core.dongle import MAX_MTU
 from core.device_connection import DeviceConnection, Not4Me, ConnectionClose, AlreadyInCache, OpenAck, \
                                     TrAck, NotExpectedTrNumber, MessageDropped
 from enum import Enum
 from random import randint
+from core.dongle import DongleDriver
 
 log = Log('Gprov')
 
-class RetStatus(Enum):
-    LinkOpenSuccessful=0
-    LinkOpenTimeout=1
-    LinkOpenFail=2
+LINK_TIMEOUT = 0x01
+CONNECTION_ALREADY_OPEN = 0x02
 
 class GenericProvisioner:
 
-    def __init__(self, dongle_driver):
+    def __init__(self, dongle_driver: DongleDriver):
         self.driver = dongle_driver
         self.connections = {}
         self.is_alive = True
 
-        scheduler.spawn_task('_recv_task', self._recv_t())
+        self._recv_task = scheduler.spawn_task(self._recv_t)
 
 #region Tasks
-    def _recv_t(self):
+    def _recv_t(self, self_task: Task):
         while self.is_alive:
             recv_message = self.driver.recv('prov')
 
@@ -42,28 +41,24 @@ class GenericProvisioner:
                     conn = self.connections[k]
                     conn.add_recv_message(recv_message)
 
-                except Not4Me:
-                    log.dbg(f'Expected {conn.link_id} link_id, but received {recv_message[0:4]} link_id')
                 except ConnectionClose as ex:
                     log.err(f'Connection {conn.link_id} closed by device. Reason: {ex.reason}')
                     conn.is_alive = False
                     del self.connections[k]
-                except AlreadyInCache:
-                    log.dbg(f'Message already in cache. Message: {recv_message}')
-                except OpenAck:
-                    if conn.is_alive:
-                        conn.open_ack_evt.set()
-                        log.succ(f'Open ack successfull. Link_id: {conn.link_id}')
-                except TrAck:
-                    log.succ(f'Tr ack received. Tr number: {recv_message[4]}')
-                except NotExpectedTrNumber:
-                    log.dbg(f'Expected {conn.prov_tr_number} tr_number, but received {recv_message[4]} tr number')
-                except MessageDropped:
-                    log.wrn(f'Message was dropped because opcode is wrong. Message {recv_message}')
                 finally:
                     yield
 
-    def open_connection_t(self, dev_uuid: bytes, connection_id: int):
+    """
+    Usage
+    
+    open_task = scheduler.spawn_task(open_connection_t, dev_uuid=b'\x00', connection_id=0xAABBCCDD)
+    self_task.wait_finish(open_task)
+    yield
+
+    if not open_task.has_error():
+        print('Connection with {0xAABBCCDD} established successful')
+    """
+    def open_connection_t(self, self_task: Task, dev_uuid: bytes, connection_id: int):
         # check if connection already is open
         if connection_id not in list(self.connections.keys()):
             # save device connection
@@ -75,17 +70,55 @@ class GenericProvisioner:
             self.driver.send(2, 20, message)
 
             # wait open ack
-            open_ack_timer = Timer(timeout=30)
-            scheduler.wait_event(f'open_connection{connection_id}', dev_conn.open_ack_evt, open_ack_timer)
+            self_task.wait_event(event=dev_conn.open_ack_evt, timeout=30)
             yield
 
-            if dev_conn.open_ack_evt.isSet() and open_ack_timer.te < open_ack_timer.timeout:
-                yield RetStatus.LinkOpenSuccessful
-            else:
+            if not dev_conn.open_ack_evt.isSet() or self_task.timer.elapsed_time > self_task.timer.timeout:
                 log.err(f'Connection open fail. Link_id {conn.link_id}')
                 dev_conn.is_alive = False
                 del self.connections[connection_id]
-                yield RetStatus.LinkOpenTimeout
+                raise TaskError(LINK_TIMEOUT, f'Link {connection_id} open timeout')
+        else:
+            raise TaskError(CONNECTION_ALREADY_OPEN, f'Link {connection_id} is already open')
+
+    """
+    Usage
+    
+    get_tr_task = scheduler.spawn_task(get_transaction_t, connection_id=0xAABBCCDD)
+    self_task.wait_finish(get_tr_task)
+    yield
+
+    tr_recv = get_tr_task.get_first_result()
+    """
+    def get_transaction_t(self, connection_id: int):
+        conn = self.connections[connection_id]
+        
+        tr_recv = None
+        while tr_recv is None:
+            tr_recv = conn.get_last_transaction()
+            yield
+
+        # TODO: send tr ack
+
+
+        yield tr_recv
+
+    """
+    Usage
+    
+    snd_tr_task = scheduler.spawn_task(send_transaction_t, connection_id=0xAABBCCDD, content=b'Message')
+    self_task.wait_finish(snd_tr_task)
+    yield
+    """
+    def send_transaction_t(self, connection_id: int, content: bytes):
+        messages = self.connections[connection_id].mount_snd_transaction(content)
+
+        for msg in messages:
+            self.driver.send(0, 20, msg)
+            delay = randint(20, 50) / 1000.0
+            sleep(delay)
+
+        # TODO: wait tr ack
 #endregion
 
 #region Private
@@ -104,30 +137,4 @@ class GenericProvisioner:
         self.connections[connection_id].is_open = False
         self.connections[connection_id].is_alive = False
         del self.connections[connection_id]
-
-    """
-    Usage
-        # this will wait a new transaction using scheduler
-        ret_queue = gprov.get_transaction('phase0_t', 0x1995)
-        yield
-
-        ...
-    """
-    def get_transaction_s(self, invoker_name: str, connection_id: int) -> list:
-        conn = self.connections[connection_id]
-        ret_queue = []
-
-        spawned_task_name = f'get_last_transaction_t{connection_id}'
-        scheduler.spawn_task(spawned_task_name, conn.get_last_transaction_t(), ret_queue)
-        scheduler.wait_finish(invoker_name, spawned_task_name)
-
-        return ret_queue
-
-    def send_transaction(self, connection_id: int, content: bytes):
-        messages = self.connections[connection_id].mount_snd_transaction(content)
-
-        for msg in messages:
-            self.driver.send(0, 20, msg)
-            delay = randint(20, 50) / 1000.0
-            sleep(delay)
 #endregion

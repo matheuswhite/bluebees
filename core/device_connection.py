@@ -1,30 +1,18 @@
-from core.scheduling import scheduler, Timer
+from core.scheduling import scheduler, Task
 from core.utils import crc8
 from core.dongle import MAX_MTU
 from threading import Event
 
 #region Exceptions
-class Not4Me(Exception):
-    pass
-
 class ConnectionClose(Exception):
 
     def __init__(self, reason:bytes):
         self.reason = reason
 
-class AlreadyInCache(Exception):
-    pass
-
 class OpenAck(Exception):
     pass
 
 class TrAck(Exception):
-    pass
-
-class NotExpectedTrNumber(Exception):
-    pass
-
-class MessageDropped(Exception):
     pass
 #endregion
 
@@ -44,26 +32,19 @@ class DeviceConnection:
         self.clear_cache_timeout = 30
         self.is_alive = True
         self.open_ack_evt = Event()
+        self.tr_ack_event = Event()
 
-        scheduler.spawn_task(f'_clear_cache_t{link_id}', self._clear_cache_t)
+        self.clear_cache_task = scheduler.spawn_task(self._clear_cache_t)
 
-#region Tasks
-    def _clear_cache_t(self):
+    #region Tasks
+    def _clear_cache_t(self, self_task: Task):
         while self.is_alive:
-            clear_timer = Timer(self.clear_cache_timeout)
-            scheduler.wait_timer(f'_clear_cache_task{self.link_id}', clear_timer)
+            self.clear_cache_task.wait_timer(timeout=self.clear_cache_timeout)
             yield
             self.cache = []
-    
-    def get_last_transaction_t(self):
-        while len(self.recv_transactions) == 0:
-            yield
-        last_recv_transaction = self.recv_transactions[0]
-        self.recv_transactions = self.recv_transactions[1:]
-        yield last_recv_transaction
-#endregion
+    #endregion
 
-#region Private
+    #region Private
     def _is4me(self, content: bytes):
         return content[0:4] == int(self.link_id).to_bytes(4, 'big')
 
@@ -91,47 +72,47 @@ class DeviceConnection:
             del self.messages[x]
             x += 1
 
-        # check total length
-        if self.tr_len != len(tr_content):
-            return
-
-        # check fcs
+        # check transaction integrity
         calc_fcs = crc8(tr_content)
-        if self.fcs != calc_fcs:
-            return
-
-        # add transaction
-        self.recv_transactions.append(tr_content)
+        if self.tr_len == len(tr_content) and self.fcs == calc_fcs:
+            self.recv_transactions.append(tr_content)
 
         self.tr_status = 'start'
-#endregion
+    #endregion
 
-#region Public
+    #region Public
     def kill(self):
         self.is_alive = False
 
-    # TODO: Review add_recv_message
+    def get_last_transaction(self):
+        if len(self.recv_transactions) > 0:
+            last_recv_transaction = self.recv_transactions[0]
+            self.recv_transactions = self.recv_transactions[1:]
+            return last_recv_transaction
+
     def add_recv_message(self, content: bytes):
         if not self._is4me(content):
-            raise Not4Me()
+            return
         if self._already_in_cache(content):
-            raise AlreadyInCache()
+            return
         if self._is_close_conn(content):
             raise ConnectionClose(content[5:6])
         if self._is_open_ack(content):
-            raise OpenAck()
+            self.open_ack_evt.set()
+            return
         if self._is_tr_ack(content):
             self.prov_tr_number += 1
+            self.tr_ack_event.set()
             raise TrAck()
         if not self._has_correct_tr_number(content):
-            raise NotExpectedTrNumber()
+            return
 
         content = content[5:]
 
         if self.tr_status == 'start':
             first_byte = content[0]
             if first_byte & 0x03 != 0:
-                raise MessageDropped()
+                return
 
             self.segn = (first_byte & 0xfc) >> 2
             self.tr_len = int.from_bytes(content[1:3], 'big')
@@ -141,7 +122,7 @@ class DeviceConnection:
             first_byte = content[0]
             if first_byte & 0x03 != 2:
                 self.tr_status = 'start'
-                raise MessageDropped()
+                return
 
             seg_index = (first_byte & 0xfc) >> 2
             self.messages[seg_index] = content[1:]
@@ -153,6 +134,7 @@ class DeviceConnection:
 
         self.cache.append(content)
 
+    # TODO: Review MTU size
     def mount_snd_transaction(self, content: bytes):
         messages = []
 
@@ -188,4 +170,4 @@ class DeviceConnection:
 
     def get_header(self):
         return self.link_id.to_bytes(4, 'big') + self.prov_tr_number.to_bytes(1, 'big')
-#endregion
+    #endregion

@@ -8,9 +8,13 @@ from Crypto.Random import get_random_bytes
 from Crypto.Hash import CMAC
 from core.log import Log
 
-from core.scheduling import scheduler, Timer
+from core.scheduling import scheduler, Task, TaskError
 from random import randint
-from core.gprov import GenericProvisioner, RetStatus
+from core.gprov import GenericProvisioner
+from core.dongle import DongleDriver
+
+PROVISIONING_FAIL = 0x10
+PROVISIONING_TIMEOUT = 0x11
 
 PROVISIONING_INVITE = b'\x00'
 PROVISIONING_CAPABILITIES = b'\x01'
@@ -30,25 +34,15 @@ CLOSE_FAIL = b'\x02'
 log = Log('Provisioning')
 
 
-class ProvisioningFail(Exception):
-    pass
-
-
-class ProvisioningTimeout(Exception):
-    pass
-
-
 class ProvisioningLayer:
 
-    def __init__(self, gprov: GenericProvisioner, dongle_driver):
+    def __init__(self, gprov: GenericProvisioner, dongle_driver: DongleDriver):
         self.is_alive = True
-        self.scan_ret_queue = []
         self.devices = []
         self.gprov = gprov
         self.dongle_driver = dongle_driver
 
-        # scheduler.spawn_task('_scan_t', self.scan_t(), self.scan_ret_queue)
-        # scheduler.spawn_task('_build_devices_t', self.build_devices_t())
+        self.scan_task = scheduler.spawn_task(self._scan_t)
 
         self.__device_capabilities = None
         self.__priv_key = None
@@ -70,22 +64,16 @@ class ProvisioningLayer:
         self.authentication_size = 0x00
 
 #region Task
-    def _scan_t(self):
+    def _scan_t(self, self_task: Task):
         while self.is_alive:
             content = self.dongle_driver.recv('beacon')
             device = self._process_beacon_content(content)
-            yield device
-
-    def _build_devices_t(self):
-        while self.is_alive:
-            scheduler.wait_result('_build_device_t', '_scan_t')
             yield
-            dev = self.scan_ret_queue[0]
-            if dev not in self.devices:
-                self.devices.append(dev)
-                self.scan_ret_queue = self.scan_ret_queue[1:]
+            if device not in self.devices:
+                self.devices.append(device)
+            yield
     
-    def _invitation_phase_t(self, connection_id: int):
+    def invitation_phase_t(self, self_task: Task, connection_id: int):
         # send prov invite
         invite_msg = PROVISIONING_INVITE
         invite_msg += self.default_attention_duration
@@ -93,13 +81,15 @@ class ProvisioningLayer:
         yield self.default_attention_duration
 
         # recv prov capabilities
-        tr = self.gprov.get_transaction_s(f'_invitation_phase_t{connection_id}', connection_id)
+        get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id)
+        self_task.wait_finish(get_tr_task)
         yield
 
+        tr = get_tr_task.get_first_result()
         opcode = tr[0]
         capabilities = tr[1:]
         if opcode != PROVISIONING_CAPABILITIES:
-            yield 'provisioning fail'
+            raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CAPABILITIES}')
         else:
             yield capabilities
 

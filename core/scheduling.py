@@ -69,7 +69,7 @@ class TaskError(Exception):
 
 class Task:
 
-    def __init__(self, name: str, func):
+    def __init__(self, name: str):
         self._name = name + '/'
         self._results = []
         self._errors = List[TaskError]
@@ -79,8 +79,6 @@ class Task:
         self._status = 'idle'
         self._task_dependency = None
         self._last_results_len = len(self._results)
-
-        self._job = func
 
     #region Properties
     @property
@@ -116,6 +114,10 @@ class Task:
     @property
     def job(self):
         return self._job
+
+    @job.setter
+    def job(self, value):
+        self._job = value
     #endregion
 
     #region Private
@@ -139,16 +141,16 @@ class Task:
     def has_error(self):
         return len(self._errors) > 0
 
-    def wait_finish(self, task_name: str, timeout=None):
+    def wait_finish(self, task, timeout=None):
         if timeout:
             self._timer.timeout = timeout
-        self._task_dependency = task_name
+        self._task_dependency = task
         self._status = 'wait_finish'
 
-    def wait_result(self, task_name: str, timeout=None):
+    def wait_result(self, task, timeout=None):
         if timeout:
             self._timer.timeout = timeout
-        self._task_dependency = task_name
+        self._task_dependency = task
         self._status = 'wait_result'
 
     def wait_event(self, event: Event, timeout=None):
@@ -175,24 +177,25 @@ class Task:
     def last_results_len(self, value):
         self._last_results_len = value
 
-    def change_state(self, tasks: Path):
+    def change_state(self):
         # check if wait is timeout
         if self.status in ['wait_finish', 'wait_result', 'wait_event', 'wait_timer']:
             self._tick_timer()
 
         # check if job is waiting for other jobs finish
         if self.status == 'wait_finish':
-            dependency = tasks.get_val(self._task_dependency)
-            if dependency.status == 'finished':
+            if self._task_dependency.status == 'finished' or self._task_dependency.status == 'error':
                 self._status = 'idle'
 
         # check if job is waiting for other jobs result
         if self.status == 'wait_result':
-            dependency = tasks.get_val(self._task_dependency)
-            results_len = len(dependency.results)
-            if results_len > 0 and dependency.last_results_len != results_len:
-                dependency.last_results_len = results_len
+            if self._task_dependency.status == 'error':
                 self._status = 'idle'
+            else:
+                results_len = len(self._task_dependency.results)
+                if results_len > 0 and self._task_dependency.last_results_len != results_len:
+                    self._task_dependency.last_results_len = results_len
+                    self._status = 'idle'
 
         # check if job is waiting a event
         if self.status == 'wait_event' and self.event.isSet():
@@ -208,6 +211,9 @@ class Task:
                     self._status = 'idle'
             except StopIteration:
                 self._status = 'finished'
+            except TaskError as error:
+                self._errors.append(error)
+                self._status = 'error'
     #endregion
 
 class Scheduler:
@@ -227,9 +233,10 @@ class Scheduler:
     def kill(self):
         self.is_alive = False
 
-    def spawn_task(self, func) -> Task:
+    def spawn_task(self, func, *args, **kwargs) -> Task:
         task_base_name = func.__name__
-        task = Task(task_base_name, func)
+        task = Task(task_base_name)
+        task.job = func(task, *args, **kwargs)
         task_order = self._tasks.add(task_base_name, task)
         task.order = task_order
 
@@ -248,10 +255,10 @@ class Scheduler:
             task = self._tasks.get_val(task_name)
 
             # change task state and execute if possible
-            task.change_state(self._tasks)
+            task.change_state()
 
             # if the task is not finished, then append to jobs queue
-            if task.status != 'finished':
+            if task.status != 'finished' and task.status != 'error':
                 self._append_job(task_name, job)
     #endregion
 
@@ -265,13 +272,13 @@ if __name__ == '__main__':
         def __init__(self):
             self.kill_event = Event()
 
-            self.kill_at_task = scheduler.spawn_task(self.kill_at_t(time=25))
-            self.wait_timer_task = scheduler.spawn_task(self.wait_timer_t())
-            self.wait_result_task = scheduler.spawn_task(self.wait_result_t())
-            self.wait_event_task = scheduler.spawn_task(self.wait_event_t())
-            self.wait_finish_task = scheduler.spawn_task(self.wait_finish_t())
+            self.kill_at_task = scheduler.spawn_task(self.kill_at_t, time=25)
+            self.wait_timer_task = scheduler.spawn_task(self.wait_timer_t)
+            self.wait_result_task = scheduler.spawn_task(self.wait_result_t)
+            self.wait_event_task = scheduler.spawn_task(self.wait_event_t)
+            self.wait_finish_task = scheduler.spawn_task(self.wait_finish_t)
 
-        def wait_timer_t(self):
+        def wait_timer_t(self, self_task: Task):
             while not self.kill_event.isSet():
                 print('[1] waiting timer')
                 self.wait_timer_task.wait_timer(timeout=3)
@@ -279,28 +286,29 @@ if __name__ == '__main__':
                 print('[1] timeout')
                 yield self.wait_timer_task.timer.elapsed_time
 
-        def wait_result_t(self):
+        def wait_result_t(self, self_task: Task):
             while not self.kill_event.isSet():
                 print('[2] waiting result')
-                self.wait_result_task.wait_result(self.wait_timer_task.name, timeout=4)
+                self.wait_result_task.wait_result(self.wait_timer_task, timeout=4)
                 yield
                 print(f'[2] Timer elapsed time values: {self.wait_timer_task.results}')
 
-        def kill_at_t(self, time: int):
+        def kill_at_t(self, self_task: Task, time: int):
+            print(f'time: {time}')
             self.kill_at_task.wait_timer(timeout=time)
             yield
             print('[3] kill all')
             self.kill_event.set()
 
-        def wait_event_t(self):
+        def wait_event_t(self, self_task: Task):
             print('[4] wait event')
             self.wait_event_task.wait_event(self.kill_event, timeout=30)
             yield
             print('[4] wait event finish')
 
-        def wait_finish_t(self):
+        def wait_finish_t(self, self_task: Task):
             print('[5] waiting finish')
-            self.wait_finish_task.wait_finish(self.wait_event_task.name, timeout=31)
+            self.wait_finish_task.wait_finish(self.wait_event_task, timeout=31)
             yield
             print('[5] wait finish done')
             scheduler.kill()
