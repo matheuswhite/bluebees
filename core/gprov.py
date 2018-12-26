@@ -17,6 +17,7 @@ log = Log('Gprov')
 
 LINK_TIMEOUT = 0x01
 CONNECTION_ALREADY_OPEN = 0x02
+TR_ACK_TIMEOUT = 0x03
 
 class GenericProvisioner:
 
@@ -57,6 +58,10 @@ class GenericProvisioner:
 
     if not open_task.has_error():
         print('Connection with {0xAABBCCDD} established successful')
+
+    Errors
+        -> LINK_TIMEOUT
+        -> CONNECTION_ALREADY_OPEN
     """
     def open_connection_t(self, self_task: Task, dev_uuid: bytes, connection_id: int):
         # check if connection already is open
@@ -89,8 +94,11 @@ class GenericProvisioner:
     yield
 
     tr_recv = get_tr_task.get_first_result()
+
+    Errors
+        None
     """
-    def get_transaction_t(self, connection_id: int):
+    def get_transaction_t(self, self_task: Task, connection_id: int):
         conn = self.connections[connection_id]
         
         tr_recv = None
@@ -98,8 +106,9 @@ class GenericProvisioner:
             tr_recv = conn.get_last_transaction()
             yield
 
-        # TODO: send tr ack
-
+        # create ack message and send it
+        message = conn.get_header() + b'\x01'
+        self.driver.send(2, 20, message)
 
         yield tr_recv
 
@@ -109,8 +118,11 @@ class GenericProvisioner:
     snd_tr_task = scheduler.spawn_task(send_transaction_t, connection_id=0xAABBCCDD, content=b'Message')
     self_task.wait_finish(snd_tr_task)
     yield
+
+    Errors
+        -> TR_ACK_TIMEOUT
     """
-    def send_transaction_t(self, connection_id: int, content: bytes):
+    def send_transaction_t(self, self_task: Task, connection_id: int, content: bytes):
         messages = self.connections[connection_id].mount_snd_transaction(content)
 
         for msg in messages:
@@ -118,7 +130,15 @@ class GenericProvisioner:
             delay = randint(20, 50) / 1000.0
             sleep(delay)
 
-        # TODO: wait tr ack
+        dev_conn = self.connections[connection_id]
+
+        # waiting tr ack
+        self_task.wait_event(dev_conn.tr_ack_event, timeout=30)
+        yield
+
+        if not dev_conn.tr_ack_event.isSet() or self_task.timer.elapsed_time > self_task.timer.timeout:
+            log.err(f'Cannot receive tr ack. Link_id {conn.link_id}, Content {content}')
+            raise TaskError(TR_ACK_TIMEOUT, f'Wait Transaction Ack timeout. Transaction: {content}')
 #endregion
 
 #region Private
