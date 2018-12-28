@@ -2,6 +2,9 @@ from core.scheduling import scheduler, Task
 from core.utils import crc8
 from core.dongle import MAX_MTU
 from threading import Event
+from core.log import Log
+
+log = Log('DeviceConnection')
 
 #region Exceptions
 class ConnectionClose(Exception):
@@ -103,7 +106,7 @@ class DeviceConnection:
         if self._is_tr_ack(content):
             self.prov_tr_number += 1
             self.tr_ack_event.set()
-            raise TrAck()
+            return
         if not self._has_correct_tr_number(content):
             return
 
@@ -148,7 +151,7 @@ class DeviceConnection:
         segn = (total_seg_number << 2).to_bytes(1, 'big')
         total_length = len(content).to_bytes(2, 'big')
         fcs = crc8(content).to_bytes(1, 'big')
-        has_continuation = total_length > MAX_MTU
+        has_continuation = int.from_bytes(total_length, 'big') > MAX_MTU
         if has_continuation:
             data = content[0:MAX_MTU]
             content = content[MAX_MTU:]

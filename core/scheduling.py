@@ -72,7 +72,7 @@ class Task:
     def __init__(self, name: str):
         self._name = name + '/'
         self._results = []
-        self._errors = List[TaskError]
+        self._errors = []
         self._event = None
         self._timer = Timer()
 

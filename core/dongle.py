@@ -43,6 +43,9 @@ class DongleDriver:
                     if len(self.cache['adv']) > 20:
                         self.cache['adv'].clear_all()
 
+                    if dongle_data is None:
+                        continue
+
                     if self.cache['adv'].push(dongle_data):
                         if self.cache[dongle_data.msg_type] is not None:
                             self.cache[dongle_data.msg_type].push(dongle_data.content)
@@ -76,8 +79,8 @@ class DongleDriver:
             return None
 
         at_symbol = parts[0][0]
-        if at_symbol != b'@':
-            log.err(f'Message start with {at_symbol} instead of @')
+        if at_symbol != ord(b'@'):
+            log.err(f'Message start with {chr(at_symbol)} instead of @')
             return None
 
         msg_type = parts[0][1:]

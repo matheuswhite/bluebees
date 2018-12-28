@@ -7,8 +7,7 @@ from core.log import Log
 from core.scheduling import scheduler, Task, TaskError
 from core.utils import crc8
 from core.dongle import MAX_MTU
-from core.device_connection import DeviceConnection, Not4Me, ConnectionClose, AlreadyInCache, OpenAck, \
-                                    TrAck, NotExpectedTrNumber, MessageDropped
+from core.device_connection import DeviceConnection, ConnectionClose, OpenAck, TrAck
 from enum import Enum
 from random import randint
 from core.dongle import DongleDriver
@@ -36,6 +35,8 @@ class GenericProvisioner:
             if not recv_message:
                 yield
                 continue
+
+            # log.dbg(f'Message received: {recv_message}')
 
             for k in list(self.connections.keys()):
                 try:
@@ -71,10 +72,12 @@ class GenericProvisioner:
             self.connections[connection_id] = dev_conn
 
             # create message and send it
+            log.dbg('Send opening message')
             message = dev_conn.get_header() + b'\x03' + dev_uuid
             self.driver.send(2, 20, message)
 
             # wait open ack
+            log.dbg('Wait open ack')
             self_task.wait_event(event=dev_conn.open_ack_evt, timeout=30)
             yield
 
@@ -83,6 +86,8 @@ class GenericProvisioner:
                 dev_conn.is_alive = False
                 del self.connections[connection_id]
                 raise TaskError(LINK_TIMEOUT, f'Link {connection_id} open timeout')
+
+            log.succ('Open ack received')
         else:
             raise TaskError(CONNECTION_ALREADY_OPEN, f'Link {connection_id} is already open')
 
@@ -101,10 +106,13 @@ class GenericProvisioner:
     def get_transaction_t(self, self_task: Task, connection_id: int):
         conn = self.connections[connection_id]
         
+        log.dbg('Waiting transaction')
         tr_recv = None
         while tr_recv is None:
             tr_recv = conn.get_last_transaction()
             yield
+        
+        log.dbg(f'Transaction Received: {tr_recv}')
 
         # create ack message and send it
         message = conn.get_header() + b'\x01'
