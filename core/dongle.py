@@ -9,7 +9,7 @@ import binascii
 
 log = Log('Dongle', LogLevel.Wrn)
 
-MAX_MTU = 24
+ADV_MTU = 24
 
 @dataclass
 class DongleData:
@@ -98,8 +98,8 @@ class DongleDriver:
         self.is_alive = False
 
     def send(self, xmit, int_ms, content: bytes):
-        if len(content) > MAX_MTU:
-            raise Exception('Message length greater than 29 bytes')
+        if len(content) > ADV_MTU + 5:
+            raise Exception(f'Message length greater than {ADV_MTU + 5} bytes')
 
         content_b64 = base64.encodebytes(content).decode('utf-8')[:-1]
         msg = f'@prov {xmit} {int_ms} {content_b64}\r\n'.encode('utf-8')

@@ -1,6 +1,6 @@
 from core.scheduling import scheduler, Task
 from core.utils import crc8
-from core.dongle import MAX_MTU
+from core.dongle import ADV_MTU
 from threading import Event
 from core.log import Log
 
@@ -19,6 +19,9 @@ class TrAck(Exception):
     pass
 #endregion
 
+START_MTU = ADV_MTU - 4
+CONT_MTU = ADV_MTU - 1
+
 class DeviceConnection:
 
     def __init__(self, link_id: int):
@@ -32,7 +35,7 @@ class DeviceConnection:
         self.fcs = 0
         self.tr_len = 0
         self.segn = 0
-        self.clear_cache_timeout = 30
+        self.clear_cache_timeout = 60
         self.is_alive = True
         self.open_ack_evt = Event()
         self.tr_ack_event = Event()
@@ -44,6 +47,7 @@ class DeviceConnection:
         while self.is_alive:
             self.clear_cache_task.wait_timer(timeout=self.clear_cache_timeout)
             yield
+            log.wrn(f'Cache of connection {self.link_id} cleared')
             self.cache = []
     #endregion
 
@@ -78,6 +82,7 @@ class DeviceConnection:
         # check transaction integrity
         calc_fcs = crc8(tr_content)
         if self.tr_len == len(tr_content) and self.fcs == calc_fcs:
+            self.device_tr_number = ((self.device_tr_number + 1) % 0x80) + 0x80
             self.recv_transactions.append(tr_content)
 
         self.tr_status = 'start'
@@ -98,6 +103,8 @@ class DeviceConnection:
             return
         if self._already_in_cache(content):
             return
+        else:
+            self.cache.append(content)
         if self._is_close_conn(content):
             raise ConnectionClose(content[5:6])
         if self._is_open_ack(content):
@@ -108,6 +115,7 @@ class DeviceConnection:
             self.tr_ack_event.set()
             return
         if not self._has_correct_tr_number(content):
+            log.wrn('tr number wrong')
             return
 
         content = content[5:]
@@ -135,7 +143,14 @@ class DeviceConnection:
         else:
             self._validate_message()
 
-        self.cache.append(content)
+    def _get_total_seg_number(self, content: bytes):
+        total_seg_number = 0
+        content_copy = content
+        content_copy = content_copy[START_MTU:]
+        while len(content_copy) > 0:
+            content_copy = content_copy[CONT_MTU:]
+            total_seg_number += 1
+        return total_seg_number
 
     # TODO: Review MTU size
     def mount_snd_transaction(self, content: bytes):
@@ -147,14 +162,14 @@ class DeviceConnection:
         header = int(self.link_id).to_bytes(4, 'big') + int(self.prov_tr_number).to_bytes(1, 'big')
 
         # start message
-        total_seg_number = int((len(content) - 1)/MAX_MTU)
+        total_seg_number = self._get_total_seg_number(content)
         segn = (total_seg_number << 2).to_bytes(1, 'big')
         total_length = len(content).to_bytes(2, 'big')
         fcs = crc8(content).to_bytes(1, 'big')
-        has_continuation = int.from_bytes(total_length, 'big') > MAX_MTU
+        has_continuation = int.from_bytes(total_length, 'big') > START_MTU
         if has_continuation:
-            data = content[0:MAX_MTU]
-            content = content[MAX_MTU:]
+            data = content[0:START_MTU]
+            content = content[START_MTU:]
         else:
             data = content
         messages.append(header + segn + total_length + fcs + data)
@@ -163,8 +178,9 @@ class DeviceConnection:
         if has_continuation:
             for i in range(1, total_seg_number):
                 seg_index = ((i << 2) | 0x02).to_bytes(1, 'big')
-                data = content[0:MAX_MTU]
-                content = content[MAX_MTU:]
+                log.dbg(f'seg_index: {i}')
+                data = content[0:CONT_MTU]
+                content = content[CONT_MTU:]
                 messages.append(header + seg_index + data)
             seg_index = ((total_seg_number << 2) | 0x02).to_bytes(1, 'big')
             messages.append(header + seg_index + content)

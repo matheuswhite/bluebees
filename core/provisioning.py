@@ -2,6 +2,10 @@ from core.scheduling import scheduler, Task, TaskError
 from core.gprov import GenericProvisioner
 from core.dongle import DongleDriver
 from core.log import Log
+from ecdsa import NIST256p, SigningKey
+from ecdsa.ecdsa import Public_key, Private_key
+from ecdsa.ellipticcurve import Point
+
 
 PROVISIONING_FAIL = 0x10
 PROVISIONING_TIMEOUT = 0x11
@@ -27,6 +31,45 @@ class Provisioning:
         self.dongle_driver = dongle_driver
         self.default_attention_duration = 5
 
+    def _gen_keys(self):
+        sk = SigningKey.generate(curve=NIST256p)
+        vk = sk.get_verifying_key()
+
+        priv_key = sk.privkey.secret_multiplier
+        pub_key = vk.pubkey.point
+
+        return pub_key, priv_key
+
+    # ECDHsecret is 32 bytes, using only 'x' part of pub key
+    def _calc_ecdh_secret(self, priv_key, pub_key):
+        secret = priv_key * pub_key
+        return secret.x()
+
+    # def _s1(self, input_: bytes):
+    #     zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    #     return self.__aes_cmac(zero, input_)
+
+    # def _k1(self, shared_secret: bytes, salt: bytes, msg: bytes):
+    #     okm = self.__aes_cmac(salt, shared_secret)
+    #     return self.__aes_cmac(okm, msg)
+
+    # def _gen_random_provisioner(self):
+    #     self.__random_provisioner = get_random_bytes(16)
+
+    # def _aes_cmac(self, key: bytes, msg: bytes):
+    #     cipher = CMAC.new(key, ciphermod=AES)
+    #     cipher.update(msg)
+    #     return cipher.digest()
+
+    # def _aes_ccm(self, key, nonce, data):
+    #     cipher = AES.new(key, AES.MODE_CCM, nonce)
+    #     return cipher.encrypt(data), cipher.digest()
+
+    """
+    Returns
+        > default attention duration [int] (invite message content)
+        > capabilities [bytes]
+    """
     def invitation_phase_t(self, self_task: Task, connection_id: int):
         # send prov invite
         invite_msg = PROVISIONING_INVITE
@@ -52,8 +95,85 @@ class Provisioning:
         else:
             yield capabilities
 
+    """
+    Returns
+        > start message content [bytes]
+        > public key [Point]
+        > private key [int]
+        > device public key [Point]
+        > ecdh secret [int]
+    """
+    def exchange_keys_phase_t(self, self_task: Task, connection_id: int, public_key_type: bytes, authentication_method: bytes, 
+                                authentication_action: bytes, authentication_size: bytes):
+        # send prov start (No OOB)
+        start_msg = PROVISIONING_START
+        start_msg += b'\x00'
+        start_msg += public_key_type
+        start_msg += authentication_method
+        start_msg += authentication_action
+        start_msg += authentication_size
+        yield start_msg[1:]
+
+        log.dbg('Sending provisioning start')
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=start_msg)
+        self_task.wait_finish(send_tr_task)
+        yield
+
+        if send_tr_task.has_error():
+            err: TaskError = send_tr_task.errors[0]
+            raise TaskError(err.errno, err.message)
+
+        log.dbg('Provisioning start message sent successful')
+
+        # gen priv_key and pub_key
+        auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        public_key, priv_key = self._gen_keys()
+        yield public_key
+        yield priv_key
+
+        # send my pub key
+        pub_key_msg = PROVISIONING_PUBLIC_KEY
+        pub_key_msg += public_key.x().to_bytes(32, 'big')
+        pub_key_msg += public_key.y().to_bytes(32, 'big')
+
+        log.dbg('Sending public key message')
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=pub_key_msg)
+        self_task.wait_finish(send_tr_task)
+        yield
+
+        if send_tr_task.has_error():
+            err: TaskError = send_tr_task.errors[0]
+            raise TaskError(err.errno, err.message)
+
+        log.dbg('Public key message sent successful')
+
+        # recv device pub key
+        log.dbg('Waiting public key message')
+        get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id=connection_id)
+        self_task.wait_finish(get_tr_task)
+        yield
+        
+        tr = get_tr_task.get_first_result()
+        opcode = tr[0]
+        if opcode != int.from_bytes(PROVISIONING_PUBLIC_KEY, 'big'):
+            raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_PUBLIC_KEY}')
+        else:
+            dev_public_key = Point(curve=NIST256p.curve, 
+                                    x=int.from_bytes(tr[1:33], 'big'), 
+                                    y=int.from_bytes(tr[33:65], 'big'))
+            yield dev_public_key
+
+        log.dbg('Received public key message')
+
+        # calc ecdh_secret = P-256(priv_key, dev_pub_key)
+        ecdh_secret = self._calc_ecdh_secret(priv_key, dev_public_key)
+        yield ecdh_secret
+
+        log.dbg('Exchange public keys phase complete')
+
     def provisioning_device_t(self, self_task: Task, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
                                 unicast_address: bytes):
+        # open phase
         log.dbg('open connection')
         open_task = scheduler.spawn_task(self.gprov.open_connection_t, dev_uuid=device_uuid, connection_id=connection_id)
         self_task.wait_finish(open_task)
@@ -63,6 +183,7 @@ class Provisioning:
             log.err('open error')
             raise TaskError(PROVISIONING_FAIL, f'Cannot open connection {connection_id}')
 
+        # invite phase
         log.dbg('invite phase')
         invite_phase_task = scheduler.spawn_task(self.invitation_phase_t, connection_id=connection_id)
         self_task.wait_finish(invite_phase_task)
@@ -74,6 +195,19 @@ class Provisioning:
 
         log.dbg(f'Capabilities: {invite_phase_task.get_last_result()}')
 
+        # exchange keys phase
+        log.dbg('exchange keys phase')
+        exchange_keys_phase_task = scheduler.spawn_task(self.exchange_keys_phase_t, connection_id=connection_id,
+                                                        public_key_type=b'\x00', authentication_method=b'\x00', 
+                                                        authentication_action=b'\x00', authentication_size=b'\x00')
+        self_task.wait_finish(exchange_keys_phase_task)
+        yield
+
+        if exchange_keys_phase_task.has_error():
+            log.err(f'exchange keys error: {exchange_keys_phase_task.errors[0].message}')
+            raise TaskError(PROVISIONING_FAIL, 'Exchange keys phase error')
+
+        
 # from core.utils import timer
 # from threading import Event
 # from data_structs.buffer import Buffer

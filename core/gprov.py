@@ -6,7 +6,7 @@ from time import sleep
 from core.log import Log
 from core.scheduling import scheduler, Task, TaskError
 from core.utils import crc8
-from core.dongle import MAX_MTU
+from core.dongle import ADV_MTU
 from core.device_connection import DeviceConnection, ConnectionClose, OpenAck, TrAck
 from enum import Enum
 from random import randint
@@ -87,6 +87,7 @@ class GenericProvisioner:
                 del self.connections[connection_id]
                 raise TaskError(LINK_TIMEOUT, f'Link {connection_id} open timeout')
 
+            dev_conn.open_ack_evt.clear()
             log.succ('Open ack received')
         else:
             raise TaskError(CONNECTION_ALREADY_OPEN, f'Link {connection_id} is already open')
@@ -134,7 +135,8 @@ class GenericProvisioner:
         messages = self.connections[connection_id].mount_snd_transaction(content)
 
         for msg in messages:
-            self.driver.send(0, 20, msg)
+            log.dbg(f'Segment: {msg}')
+            self.driver.send(2, 20, msg)
             delay = randint(20, 50) / 1000.0
             sleep(delay)
 
@@ -145,8 +147,11 @@ class GenericProvisioner:
         yield
 
         if not dev_conn.tr_ack_event.isSet() or self_task.timer.elapsed_time > self_task.timer.timeout:
-            log.err(f'Cannot receive tr ack. Link_id {conn.link_id}, Content {content}')
+            log.err(f'Cannot receive tr ack. Link_id {dev_conn.link_id}, Content {content}')
             raise TaskError(TR_ACK_TIMEOUT, f'Wait Transaction Ack timeout. Transaction: {content}')
+
+        dev_conn.tr_ack_event.clear()
+        log.succ('Transaction ack received')
 #endregion
 
 #region Private
