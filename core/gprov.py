@@ -68,7 +68,7 @@ class GenericProvisioner:
         # check if connection already is open
         if connection_id not in list(self.connections.keys()):
             # save device connection
-            dev_conn = DeviceConnection(connection_id)
+            dev_conn = DeviceConnection(connection_id, self.driver)
             self.connections[connection_id] = dev_conn
 
             # create message and send it
@@ -116,8 +116,8 @@ class GenericProvisioner:
         log.dbg(f'Transaction Received: {tr_recv}')
 
         # create ack message and send it
-        message = conn.get_header() + b'\x01'
-        self.driver.send(2, 20, message)
+        # message = conn.get_header() + b'\x01'
+        # self.driver.send(2, 20, message)
 
         yield tr_recv
 

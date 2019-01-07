@@ -2,7 +2,7 @@ from core.scheduling import scheduler, Task, TaskError
 from core.gprov import GenericProvisioner
 from core.dongle import DongleDriver
 from core.log import Log
-from ecdsa import NIST256p, SigningKey
+from ecdsa import NIST256p, SigningKey, CMAC, AES, get_random_bytes
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
 
@@ -45,21 +45,21 @@ class Provisioning:
         secret = priv_key * pub_key
         return secret.x()
 
-    # def _s1(self, input_: bytes):
-    #     zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-    #     return self.__aes_cmac(zero, input_)
+    def _s1(self, input_: bytes):
+        zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        return self._aes_cmac(zero, input_)
 
-    # def _k1(self, shared_secret: bytes, salt: bytes, msg: bytes):
-    #     okm = self.__aes_cmac(salt, shared_secret)
-    #     return self.__aes_cmac(okm, msg)
+    def _k1(self, shared_secret: bytes, salt: bytes, msg: bytes):
+        okm = self._aes_cmac(salt, shared_secret)
+        return self._aes_cmac(okm, msg)
 
-    # def _gen_random_provisioner(self):
-    #     self.__random_provisioner = get_random_bytes(16)
+    def _gen_random_provisioner(self):
+        return get_random_bytes(16)
 
-    # def _aes_cmac(self, key: bytes, msg: bytes):
-    #     cipher = CMAC.new(key, ciphermod=AES)
-    #     cipher.update(msg)
-    #     return cipher.digest()
+    def _aes_cmac(self, key: bytes, msg: bytes):
+        cipher = CMAC.new(key, ciphermod=AES)
+        cipher.update(msg)
+        return cipher.digest()
 
     # def _aes_ccm(self, key, nonce, data):
     #     cipher = AES.new(key, AES.MODE_CCM, nonce)
@@ -157,11 +157,11 @@ class Provisioning:
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_PUBLIC_KEY, 'big'):
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_PUBLIC_KEY}')
-        else:
-            dev_public_key = Point(curve=NIST256p.curve, 
-                                    x=int.from_bytes(tr[1:33], 'big'), 
-                                    y=int.from_bytes(tr[33:65], 'big'))
-            yield dev_public_key
+        
+        dev_public_key = Point(curve=NIST256p.curve, 
+                                x=int.from_bytes(tr[1:33], 'big'), 
+                                y=int.from_bytes(tr[33:65], 'big'))
+        yield dev_public_key
 
         log.dbg('Received public key message')
 
@@ -170,6 +170,80 @@ class Provisioning:
         yield ecdh_secret
 
         log.dbg('Exchange public keys phase complete')
+
+    # TODO: coding this
+    def authentication_phase_t(self, self_task: Task, connection_id: int, provisioning_invite: bytes, provisioning_capabilities: bytes,
+                                provisioning_start: bytes, public_key_x: bytes, public_key_y: bytes,
+                                device_public_key_x: bytes, device_public_key_y: bytes, ecdh_secret: bytes, auth_value: bytes):
+        # calc crypto values need
+        confirmation_inputs = provisioning_invite + provisioning_capabilities + provisioning_start + public_key_x + \
+                                public_key_y + device_public_key_x + device_public_key_y
+        confirmation_salt = self._s1(confirmation_inputs)
+        confirmation_key = self._k1(ecdh_secret, confirmation_salt, b'prck')
+
+        random_provisioner = self._gen_random_provisioner()
+
+        confirmation_provisioner = self._aes_cmac(confirmation_key, random_provisioner + auth_value)
+
+        # send confirmation provisioner
+        log.dbg('Sending confirmation message')
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=confirmation_provisioner)
+        self_task.wait_finish(send_tr_task)
+        yield
+
+        if send_tr_task.has_error():
+            err: TaskError = send_tr_task.errors[0]
+            raise TaskError(err.errno, err.message)
+
+        log.dbg('Confirmation message sent successful')
+
+        # recv confiramtion device
+        log.dbg('Receiving confirmation message from device')
+        get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id=connection_id)
+        self_task.wait_finish(get_tr_task)
+        yield
+
+        tr = get_tr_task.get_first_result()
+        opcode = tr[0]
+        if opcode != int.from_bytes(PROVISIONING_CONFIRMATION, 'big'):
+            raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CONFIRMATION}')
+        recv_confirmation_device = tr
+        yield recv_confirmation_device
+
+        log.dbg('Received confirmation message from device')
+
+        # send random provisioner
+        log.dbg('Sending random provisioner message')
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=random_provisioner)
+        self_task.wait_finish(send_tr_task)
+        yield
+
+        if send_tr_task.has_error():
+            err: TaskError = send_tr_task.errors[0]
+            raise TaskError(err.errno, err.message)
+
+        log.dbg('Random provisioner message sent successful')
+
+        # recv random device
+        log.dbg('Receiving random message from device')
+        get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id=connection_id)
+        self_task.wait_finish(get_tr_task)
+        yield
+
+        tr = get_tr_task.get_first_result()
+        opcode = tr[0]
+        if opcode != int.from_bytes(PROVISIONING_RANDOM, 'big'):
+            raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_RANDOM}')
+        random_device = tr
+        yield random_device
+
+        log.dbg('Received random message from device')
+
+        # check info
+        calc_confiramtion_device = self._aes_cmac(confirmation_key, random_device + auth_value)
+
+        if recv_confirmation_device != calc_confiramtion_device:
+            raise TaskError(PROVISIONING_FAIL, f'Confirmations not match')
 
     def provisioning_device_t(self, self_task: Task, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
                                 unicast_address: bytes):

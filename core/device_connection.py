@@ -3,6 +3,7 @@ from core.utils import crc8
 from core.dongle import ADV_MTU
 from threading import Event
 from core.log import Log
+from core.dongle import DongleDriver
 
 log = Log('DeviceConnection')
 
@@ -24,7 +25,7 @@ CONT_MTU = ADV_MTU - 1
 
 class DeviceConnection:
 
-    def __init__(self, link_id: int):
+    def __init__(self, link_id: int, driver: DongleDriver):
         self.link_id = link_id
         self.prov_tr_number = 0x00
         self.device_tr_number = 0x80
@@ -39,6 +40,7 @@ class DeviceConnection:
         self.is_alive = True
         self.open_ack_evt = Event()
         self.tr_ack_event = Event()
+        self.driver = driver
 
         self.clear_cache_task = scheduler.spawn_task(self._clear_cache_t)
 
@@ -86,6 +88,25 @@ class DeviceConnection:
             self.recv_transactions.append(tr_content)
 
         self.tr_status = 'start'
+
+    def _get_total_seg_number(self, content: bytes):
+        total_seg_number = 0
+        content_copy = content
+        content_copy = content_copy[START_MTU:]
+        while len(content_copy) > 0:
+            content_copy = content_copy[CONT_MTU:]
+            total_seg_number += 1
+        return total_seg_number
+
+    def _resend_ack(self, content: bytes):
+        # check if message is a open ack or a tr ack
+        if content[5] == 0x07 or content[5] == 0x01:
+            return
+
+        dev_tr_number = content[4:5]
+        message = self.link_id.to_bytes(4, 'big') + dev_tr_number + b'\x01'
+        log.succ(f'Sending ack of {dev_tr_number}')
+        self.driver.send(0, 20, message)
     #endregion
 
     #region Public
@@ -102,6 +123,7 @@ class DeviceConnection:
         if not self._is4me(content):
             return
         if self._already_in_cache(content):
+            self._resend_ack(content);
             return
         else:
             self.cache.append(content)
@@ -142,15 +164,6 @@ class DeviceConnection:
             self.tr_status = 'continuation'
         else:
             self._validate_message()
-
-    def _get_total_seg_number(self, content: bytes):
-        total_seg_number = 0
-        content_copy = content
-        content_copy = content_copy[START_MTU:]
-        while len(content_copy) > 0:
-            content_copy = content_copy[CONT_MTU:]
-            total_seg_number += 1
-        return total_seg_number
 
     # TODO: Review MTU size
     def mount_snd_transaction(self, content: bytes):
