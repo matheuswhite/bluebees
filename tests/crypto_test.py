@@ -14,6 +14,30 @@ def product(priv, pub):
 
     return (priv_key.secret_multiplier * pub_key.point).x()
 
+def aes_cmac(key: bytes, msg: bytes):
+    cipher = CMAC.new(key, ciphermod=AES)
+    cipher.update(msg)
+    return cipher.digest()
+
+def s1(input_: bytes):
+    zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    return aes_cmac(zero, input_)
+
+def k1(shared_secret: bytes, salt: bytes, msg: bytes):
+    okm = aes_cmac(salt, shared_secret)
+    return aes_cmac(okm, msg)
+
+def calc_confirmation_key(confirmation_inputs: bytes, ecdh_secret: bytes):
+    confirmation_salt = s1(confirmation_inputs)
+    confirmation_key = k1(ecdh_secret, confirmation_salt, b'prck')
+
+    return confirmation_key
+
+def calc_confirmation(confirmation_key: bytes, random_provisioner: bytes, auth_value: bytes):
+    confirmation_provisioner = aes_cmac(confirmation_key, random_provisioner + auth_value)
+
+    return confirmation_provisioner
+
 def test_crypto():
     log = Log("Crypto")
 
@@ -47,3 +71,25 @@ def test_crypto():
 
     assert prov_ecdh == expected_prov_ecdh
     assert dev_ecdh == expected_dev_ecdh
+
+    invite_pdu = b'\x00'
+    capabilities_pdu = b'\x01\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00'
+    start_pdu = b'\x00\x00\x00\x00\x00'
+    confirmation_inputs = invite_pdu + capabilities_pdu + start_pdu + \
+                            prov_pub_key['x'] + prov_pub_key['y'] + \
+                            dev_pub_key['x'] + dev_pub_key['y']
+
+    confirmation_salt = b'\x5f\xaa\xbe\x18\x73\x37\xc7\x1c\xc6\xc9\x73\x36\x9d\xca\xa7\x9a'
+    ecdh_secret = b'\xab\x85\x84\x3a\x2f\x6d\x88\x3f\x62\xe5\x68\x4b\x38\xe3\x07\x33\x5f\xe6\xe1\x94\x5e\xcd\x19\x60\x41\x05\xc6\xf2\x32\x21\xeb\x69'
+
+    expected_confirmation_key = b'\xe3\x1f\xe0\x46\xc6\x8e\xc3\x39\xc4\x25\xfc\x66\x29\xf0\x33\x6f'
+    confirmation_key = calc_confirmation_key(confirmation_inputs, ecdh_secret)
+
+    assert expected_confirmation_key == confirmation_key
+
+    auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+    expected_confirmation = b'\xb3\x8a\x11\x4d\xfd\xca\x1f\xe1\x53\xbd\x2c\x1e\x0d\xc4\x6a\xc2'
+    confirmation = calc_confirmation(confirmation_key, prov_random, auth_value)
+
+    assert expected_confirmation == confirmation
