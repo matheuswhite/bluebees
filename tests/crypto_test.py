@@ -1,10 +1,14 @@
+import os
+import sys
+sys.path.append('/home/matheuswhite/Documentos/bluebees/')
+
 from ecdsa import NIST256p
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
-from Crypto.Hash import CMAC
-from core.log import Log
+from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import cmac
+from cryptography.hazmat.primitives.ciphers import algorithms
 
 def product(priv, pub):
     priv = int.from_bytes(priv, 'big')
@@ -14,10 +18,15 @@ def product(priv, pub):
 
     return (priv_key.secret_multiplier * pub_key.point).x()
 
+def aes_ccm(key, nonce, data, adata):
+    aesccm = AESCCM(key, tag_length=8)
+    ct = aesccm.encrypt(nonce, data, adata)
+    return ct[0:25], ct[25:]
+
 def aes_cmac(key: bytes, msg: bytes):
-    cipher = CMAC.new(key, ciphermod=AES)
-    cipher.update(msg)
-    return cipher.digest()
+    c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
+    c.update(msg)
+    return c.finalize()
 
 def s1(input_: bytes):
     zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -39,8 +48,7 @@ def calc_confirmation(confirmation_key: bytes, random_provisioner: bytes, auth_v
     return confirmation_provisioner
 
 def test_crypto():
-    log = Log("Crypto")
-
+    # exchange public keys
     prov_priv_key = b'\x06\xa5\x16\x69\x3c\x9a\xa3\x1a\x60\x84\x54\x5d\x0c\x5d\xb6\x41\xb4\x85\x72\xb9\x72\x03\xdd\xff\xb7\xac\x73\xf7\xd0\x45\x76\x63'
     prov_pub_key = {}
     prov_pub_key['x'] = b'\x2c\x31\xa4\x7b\x57\x79\x80\x9e\xf4\x4c\xb5\xea\xaf\x5c\x3e\x43\xd5\xf8\xfa\xad\x4a\x87\x94\xcb\x98\x7e\x9b\x03\x74\x5c\x78\xdd'
@@ -72,6 +80,7 @@ def test_crypto():
     assert prov_ecdh == expected_prov_ecdh
     assert dev_ecdh == expected_dev_ecdh
 
+    # authentication
     invite_pdu = b'\x00'
     capabilities_pdu = b'\x01\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00'
     start_pdu = b'\x00\x00\x00\x00\x00'
@@ -93,3 +102,42 @@ def test_crypto():
     confirmation = calc_confirmation(confirmation_key, prov_random, auth_value)
 
     assert expected_confirmation == confirmation
+
+    # distribuition provisioning data
+    confirmation_salt = b'\x5f\xaa\xbe\x18\x73\x37\xc7\x1c\xc6\xc9\x73\x36\x9d\xca\xa7\x9a'
+    prov_random = b'\x8b\x19\xac\x31\xd5\x8b\x12\x4c\x94\x62\x09\xb5\xdb\x10\x21\xb9'
+    dev_random = b'\x55\xa2\xa2\xbc\xa0\x4c\xd3\x2f\xf6\xf3\x46\xbd\x0a\x0c\x1a\x3a'
+    provisioning_inputs = confirmation_salt + prov_random + dev_random
+
+    network_key = b'\xef\xb2\x25\x5e\x64\x22\xd3\x30\x08\x8e\x09\xbb\x01\x5e\xd7\x07'
+    key_index = b'\x05\x67'
+    flags = b'\x00'
+    iv_index = b'\x01\x02\x03\x04'
+    unicast_address = b'\x0b\x0c'
+
+    provisioning_salt = s1(provisioning_inputs)
+    provisioning_data = network_key + key_index + flags + iv_index + unicast_address
+
+    session_key = k1(ecdh_secret, provisioning_salt, b'prsk')
+    session_nonce = k1(ecdh_secret, provisioning_salt, b'prsn')
+    session_nonce = session_nonce[3:]
+
+    encrypted_provisioning_data, provisioning_data_mic = aes_ccm(session_key, session_nonce, provisioning_data, b'')
+
+    expected_provisioning_salt = b'\xa2\x1c\x7d\x45\xf2\x01\xcf\x94\x89\xa2\xfb\x57\x14\x50\x15\xb4'
+    expected_session_key = b'\xc8\x02\x53\xaf\x86\xb3\x3d\xfa\x45\x0b\xbd\xb2\xa1\x91\xfe\xa3'
+    expected_session_nonce = b'\xda\x7d\xdb\xe7\x8b\x5f\x62\xb8\x1d\x68\x47\x48\x7e'
+    expected_encrypted_provisioning_data = b'\xd0\xbd\x7f\x4a\x89\xa2\xff\x62\x22\xaf\x59\xa9\x0a\x60\xad\x58\xac\xfe\x31\x23\x35\x6f\x5c\xec\x29'
+    expected_provisioning_data_mic = b'\x73\xe0\xec\x50\x78\x3b\x10\xc7'
+
+    assert len(provisioning_salt) == len(expected_provisioning_salt)
+    assert len(session_key) == len(expected_session_key)
+    assert len(session_nonce) == len(expected_session_nonce)
+    assert len(encrypted_provisioning_data) == len(expected_encrypted_provisioning_data)
+    assert len(provisioning_data_mic) == len(expected_provisioning_data_mic)
+
+    assert provisioning_salt == expected_provisioning_salt
+    assert session_key == expected_session_key
+    assert session_nonce == expected_session_nonce
+    assert encrypted_provisioning_data == expected_encrypted_provisioning_data
+    assert provisioning_data_mic == expected_provisioning_data_mic
