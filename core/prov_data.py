@@ -25,11 +25,11 @@ class ProvData:
 
     @classmethod
     def bytes2str(cls, value: bytes):
-        return value.decode('utf8')
+        return value.hex()
 
     @classmethod
     def str2bytes(cls, value: str):
-        return value.encode('utf8')
+        return bytes.fromhex(value)
 
     def save(self, filename: str):
         with open(filename, 'w') as file:

@@ -2,9 +2,17 @@ from core.scheduling import scheduler, Task, TaskError
 from core.gprov import GenericProvisioner
 from core.dongle import DongleDriver
 from core.log import Log
-from ecdsa import NIST256p, SigningKey, CMAC, AES, get_random_bytes
+from ecdsa import NIST256p, SigningKey
+from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES
+from Crypto.Hash import CMAC
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
+from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import cmac
+from cryptography.hazmat.primitives.ciphers import algorithms
+from core.prov_data import ProvData
 
 
 PROVISIONING_FAIL = 0x10
@@ -57,13 +65,14 @@ class Provisioning:
         return get_random_bytes(16)
 
     def _aes_cmac(self, key: bytes, msg: bytes):
-        cipher = CMAC.new(key, ciphermod=AES)
-        cipher.update(msg)
-        return cipher.digest()
+        c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
+        c.update(msg)
+        return c.finalize()
 
-    # def _aes_ccm(self, key, nonce, data):
-    #     cipher = AES.new(key, AES.MODE_CCM, nonce)
-    #     return cipher.encrypt(data), cipher.digest()
+    def _aes_ccm(self, key, nonce, data, adata):
+        aesccm = AESCCM(key, tag_length=8)
+        ct = aesccm.encrypt(nonce, data, adata)
+        return ct[0:25], ct[25:]
 
     """
     Returns
@@ -102,6 +111,7 @@ class Provisioning:
         > private key [int]
         > device public key [Point]
         > ecdh secret [int]
+        > auth value [bytes]
     """
     def exchange_keys_phase_t(self, self_task: Task, connection_id: int, public_key_type: bytes, authentication_method: bytes, 
                                 authentication_action: bytes, authentication_size: bytes):
@@ -126,7 +136,6 @@ class Provisioning:
         log.dbg('Provisioning start message sent successful')
 
         # gen priv_key and pub_key
-        auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         public_key, priv_key = self._gen_keys()
         yield public_key
         yield priv_key
@@ -169,9 +178,18 @@ class Provisioning:
         ecdh_secret = self._calc_ecdh_secret(priv_key, dev_public_key)
         yield ecdh_secret
 
+        auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        yield auth_value
+
         log.dbg('Exchange public keys phase complete')
 
-    # TODO: coding this
+    """
+    Returns
+        > confirmation salt [bytes]
+        > provisioner random [bytes]
+        > device confirmation [bytes]
+        > device random [bytes]
+    """
     def authentication_phase_t(self, self_task: Task, connection_id: int, provisioning_invite: bytes, provisioning_capabilities: bytes,
                                 provisioning_start: bytes, public_key_x: bytes, public_key_y: bytes,
                                 device_public_key_x: bytes, device_public_key_y: bytes, ecdh_secret: bytes, auth_value: bytes):
@@ -179,15 +197,18 @@ class Provisioning:
         confirmation_inputs = provisioning_invite + provisioning_capabilities + provisioning_start + public_key_x + \
                                 public_key_y + device_public_key_x + device_public_key_y
         confirmation_salt = self._s1(confirmation_inputs)
+        yield confirmation_salt
         confirmation_key = self._k1(ecdh_secret, confirmation_salt, b'prck')
-
         random_provisioner = self._gen_random_provisioner()
-
+        yield random_provisioner
         confirmation_provisioner = self._aes_cmac(confirmation_key, random_provisioner + auth_value)
 
         # send confirmation provisioner
+        confirmation_msg = PROVISIONING_CONFIRMATION
+        confirmation_msg += confirmation_provisioner
+
         log.dbg('Sending confirmation message')
-        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=confirmation_provisioner)
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=confirmation_msg)
         self_task.wait_finish(send_tr_task)
         yield
 
@@ -207,14 +228,17 @@ class Provisioning:
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_CONFIRMATION, 'big'):
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CONFIRMATION}')
-        recv_confirmation_device = tr
+        recv_confirmation_device = tr[1:]
         yield recv_confirmation_device
 
         log.dbg('Received confirmation message from device')
 
         # send random provisioner
+        random_msg = PROVISIONING_RANDOM
+        random_msg += random_provisioner
+
         log.dbg('Sending random provisioner message')
-        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=random_provisioner)
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=random_msg)
         self_task.wait_finish(send_tr_task)
         yield
 
@@ -234,7 +258,7 @@ class Provisioning:
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_RANDOM, 'big'):
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_RANDOM}')
-        random_device = tr
+        random_device = tr[1:]
         yield random_device
 
         log.dbg('Received random message from device')
@@ -242,8 +266,63 @@ class Provisioning:
         # check info
         calc_confiramtion_device = self._aes_cmac(confirmation_key, random_device + auth_value)
 
+        log.dbg(f'calc: {calc_confiramtion_device}, recv: {recv_confirmation_device}')
+
         if recv_confirmation_device != calc_confiramtion_device:
             raise TaskError(PROVISIONING_FAIL, f'Confirmations not match')
+
+        log.dbg('Authentication phase complete')
+
+    """
+    Returns
+        Nothing
+    """
+    def send_provisioning_data_phase_t(self, self_task: Task, connection_id: int, network_key: bytes, key_index: bytes, 
+                                        flags: bytes, iv_index: bytes, unicast_address: bytes, confirmation_salt: bytes,
+                                        random_provisioner: bytes, random_device: bytes, ecdh_secret: bytes):
+        # encrypt provisioning data
+        provisioning_inputs = confirmation_salt + random_provisioner + random_device
+        provisioning_data = network_key + key_index + flags + iv_index + unicast_address
+        
+        provisioning_salt = self._s1(provisioning_inputs)
+        session_key = self._k1(ecdh_secret, provisioning_salt, b'prsk')
+        session_nonce = self._k1(ecdh_secret, provisioning_salt, b'prsn')[3:]
+
+        encrypted_provisioning_data, provisioning_data_mic = self._aes_ccm(session_key, session_nonce, provisioning_data, b'')
+
+        # send provisioning data
+        provisioning_data_msg = PROVISIONING_DATA
+        provisioning_data_msg += encrypted_provisioning_data
+        provisioning_data_msg += provisioning_data_mic
+
+        log.dbg('Sending provisioning data message')
+        send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=provisioning_data_msg)
+        self_task.wait_finish(send_tr_task)
+        yield
+
+        if send_tr_task.has_error():
+            err: TaskError = send_tr_task.errors[0]
+            raise TaskError(err.errno, err.message)
+
+        log.dbg('Provisioning data message sent successful')
+
+        # wait prov complete
+        log.dbg('Receiving provisioning complete message from device')
+        get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id=connection_id)
+        self_task.wait_finish(get_tr_task)
+        yield
+
+        tr = get_tr_task.get_first_result()
+        opcode = tr[0]
+        if opcode != int.from_bytes(PROVISIONING_COMPLETE, 'big'):
+            raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_RANDOM}')
+
+        log.dbg('Received provisioning complete message from device')
+
+        # close link
+        self.gprov.close_connection(connection_id, 0)
+
+        log.dbg('Send provisioning data phase complete')
 
     def provisioning_device_t(self, self_task: Task, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
                                 unicast_address: bytes):
@@ -281,381 +360,76 @@ class Provisioning:
             log.err(f'exchange keys error: {exchange_keys_phase_task.errors[0].message}')
             raise TaskError(PROVISIONING_FAIL, 'Exchange keys phase error')
 
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
+        # authentication phase
+        log.dbg('authentication phase')
+        authentication_phase_task = scheduler.spawn_task(self.authentication_phase_t, connection_id=connection_id,
+                                                        provisioning_invite=invite_phase_task.results[0].to_bytes(1, 'big'), 
+                                                        provisioning_capabilities=invite_phase_task.results[1],
+                                                        provisioning_start=exchange_keys_phase_task.results[0], 
+                                                        public_key_x=exchange_keys_phase_task.results[1].x().to_bytes(32, 'big'), 
+                                                        public_key_y=exchange_keys_phase_task.results[1].y().to_bytes(32, 'big'),
+                                                        device_public_key_x=exchange_keys_phase_task.results[3].x().to_bytes(32, 'big'),
+                                                        device_public_key_y=exchange_keys_phase_task.results[3].y().to_bytes(32, 'big'), 
+                                                        ecdh_secret=exchange_keys_phase_task.results[4].to_bytes(32, 'big'), 
+                                                        auth_value=exchange_keys_phase_task.results[5])
+        self_task.wait_finish(authentication_phase_task)
+        yield
+
+        if authentication_phase_task.has_error():
+            log.err(f'authentication error: {authentication_phase_task.errors[0].message}')
+            raise TaskError(PROVISIONING_FAIL, 'Authentication phase error')
+
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
+        # send provisioning data phase
+        log.dbg('send provisioning data phase')
         
-# from core.utils import timer
-# from threading import Event
-# from data_structs.buffer import Buffer
-# from core.device import Capabilities
-# from ecdsa import SigningKey, NIST256p
-# from Crypto.Cipher import AES
-# from Crypto.Random import get_random_bytes
-# from Crypto.Hash import CMAC
-# from core.log import Log
+        network_key = b'\xef\xb2\x25\x5e\x64\x22\xd3\x30\x08\x8e\x09\xbb\x01\x5e\xd7\x07'
+        key_index = b'\x05\x67'
+        flags = b'\x00'
+        iv_index = b'\x01\x02\x03\x04'
+        unicast_address = b'\x0b\x0c'
 
-# from core.scheduling import scheduler, Task, TaskError
-# from random import randint
-# from core.gprov import GenericProvisioner
-# from core.dongle import DongleDriver
+        send_provisioning_data_phase_task = scheduler.spawn_task(self.send_provisioning_data_phase_t, 
+                                                                    connection_id=connection_id, network_key=network_key, 
+                                                                    key_index=key_index, flags=flags, iv_index=iv_index, 
+                                                                    unicast_address=unicast_address, 
+                                                                    confirmation_salt=authentication_phase_task.results[0],
+                                                                    random_provisioner=authentication_phase_task.results[1],
+                                                                    random_device=authentication_phase_task.results[3], 
+                                                                    ecdh_secret=exchange_keys_phase_task.results[4].to_bytes(32, 'big'))
+        self_task.wait_finish(send_provisioning_data_phase_task)
+        yield
 
-# PROVISIONING_FAIL = 0x10
-# PROVISIONING_TIMEOUT = 0x11
+        if send_provisioning_data_phase_task.has_error():
+            log.err(f'send provisioning data error: {send_provisioning_data_phase_task.errors[0].message}')
+            raise TaskError(PROVISIONING_FAIL, 'Send provisioning data phase error')
 
-# PROVISIONING_INVITE = b'\x00'
-# PROVISIONING_CAPABILITIES = b'\x01'
-# PROVISIONING_START = b'\x02'
-# PROVISIONING_PUBLIC_KEY = b'\x03'
-# PROVISIONING_INPUT_COMPLETE = b'\x04'
-# PROVISIONING_CONFIRMATION = b'\x05'
-# PROVISIONING_RANDOM = b'\x06'
-# PROVISIONING_DATA = b'\x07'
-# PROVISIONING_COMPLETE = b'\x08'
-# PROVISIONING_FAILED = b'\x09'
+        log.succ('send provisioning data finished')
 
-# CLOSE_SUCCESS = b'\x00'
-# CLOSE_TIMEOUT = b'\x01'
-# CLOSE_FAIL = b'\x02'
+        # save prov data
+        prov_data = ProvData(prov_public_key_x=exchange_keys_phase_task.results[1].x().to_bytes(32, 'big'), 
+                                prov_public_key_y=exchange_keys_phase_task.results[1].y().to_bytes(32, 'big'),
+                                dev_public_key_x=exchange_keys_phase_task.results[3].x().to_bytes(32, 'big'),
+                                dev_public_key_y=exchange_keys_phase_task.results[3].y().to_bytes(32, 'big'),
+                                prov_priv_key=exchange_keys_phase_task.results[2].to_bytes(32, 'big'),
+                                random_provisioner=authentication_phase_task.results[1],
+                                random_device=authentication_phase_task.results[2],
+                                auth_value=exchange_keys_phase_task.results[5],
+                                invite_pdu=invite_phase_task.results[0].to_bytes(1, 'big'),
+                                capabilities_pdu=invite_phase_task.results[1],
+                                start_pdu=exchange_keys_phase_task.results[0],
+                                network_key=network_key,
+                                key_index=key_index,
+                                flags=flags,
+                                iv_index=iv_index,
+                                unicast_address=unicast_address)
+        prov_data.save(f'../.provdata/node{connection_id}.json')
 
-# log = Log('Provisioning')
-
-
-# class ProvisioningLayer:
-
-#     def __init__(self, gprov: GenericProvisioner, dongle_driver: DongleDriver):
-#         self.is_alive = True
-#         self.devices = []
-#         self.gprov = gprov
-#         self.dongle_driver = dongle_driver
-
-#         self.scan_task = scheduler.spawn_task(self._scan_t)
-
-#         self.__device_capabilities = None
-#         self.__priv_key = None
-#         self.__pub_key = None
-#         self.__device_pub_key = None
-#         self.__ecdh_secret = None
-#         self.__sk = None
-#         self.__vk = None
-#         self.__provisioning_invite = None
-#         self.__provisioning_capabilities = None
-#         self.__provisioning_start = None
-#         self.__auth_value = None
-#         self.__random_provisioner = None
-#         self.__random_device = None
-#         self.default_attention_duration = 5
-#         self.public_key_type = 0x00
-#         self.authentication_method = 0x00
-#         self.authentication_action = 0x00
-#         self.authentication_size = 0x00
-
-# #region Task
-#     def _scan_t(self, self_task: Task):
-#         while self.is_alive:
-#             content = self.dongle_driver.recv('beacon')
-#             device = self._process_beacon_content(content)
-#             yield
-#             if device not in self.devices:
-#                 self.devices.append(device)
-#             yield
-    
-#     def invitation_phase_t(self, self_task: Task, connection_id: int):
-#         # send prov invite
-#         invite_msg = PROVISIONING_INVITE
-#         invite_msg += self.default_attention_duration
-#         self.gprov.send_transaction(connection_id, invite_msg)
-#         yield self.default_attention_duration
-
-#         # recv prov capabilities
-#         get_tr_task = scheduler.spawn_task(self.gprov.get_transaction_t, connection_id)
-#         self_task.wait_finish(get_tr_task)
-#         yield
-
-#         tr = get_tr_task.get_first_result()
-#         opcode = tr[0]
-#         capabilities = tr[1:]
-#         if opcode != PROVISIONING_CAPABILITIES:
-#             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CAPABILITIES}')
-#         else:
-#             yield capabilities
-
-#     def provisioning_device_t(self, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
-#                                 unicast_address: bytes):
-#         provisioning_status = 'ok' # 'ok' | 'timeout' | 'fail'
-        
-#         # connection open
-#         if provisioning_status == 'ok':
-#             ret = []
-#             scheduler.spawn_task(f'open_connection_t{connection_id}', 
-#                                 self.gprov.open_connection_t(device_uuid, connection_id), ret)
-#             self._wait_phase(connection_id, f'open_connection_t{connection_id}')
-#             yield
-
-#             if ret[0] == RetStatus.LinkOpenTimeout:
-#                 provisioning_status = 'timeout'
-        
-#         # invitation phase
-#         if provisioning_status == 'ok':
-#             ret = []
-#             scheduler.spawn_task(f'_invitation_phase_t{connection_id}', self._invitation_phase_t(), ret)
-#             self._wait_phase(connection_id, f'_invitation_phase_t{connection_id}')
-#             yield
-
-#             if ret[0]
-
-#         if provisioning_status == 'ok':
-
-
-
-#         log.log('Opening Link...')
-#         self.__gprov_layer.open_link(device_uuid)
-#         log.log('Link Open')
-
-#         try:
-#             log.log('Invitation Phase')
-#             self.__invitation_prov_phase()
-#             log.log('Exchanging Public Keys Phase')
-#             self.__exchanging_pub_keys_prov_phase()
-#             log.log('Authentication Phase')
-#             self.__authentication_prov_phase()
-#             log.log('Send Data Phase')
-#             self.__send_data_prov_phase(net_key, key_index, iv_index, unicast_address)
-
-#             log.log('Closing Link...')
-#             self.__gprov_layer.close_link(CLOSE_SUCCESS)
-#             log.log('Link Closed successful')
-#         except ProvisioningFail:
-#             self.__gprov_layer.close_link(CLOSE_FAIL)
-#             log.log('Link Closed with fail')
-#         except ProvisioningTimeout:
-#             self.__gprov_layer.close_link(CLOSE_TIMEOUT)
-#             log.log('Link Closed with timeout')
-# #endregion
-
-# #region Private
-#     # TODO: change this to get only device uuid
-#     def _process_beacon_content(self, content: bytes):
-#         if content:
-#             return content.split(b' ')[1]
-
-#     def _wait_phase(self, connection_id: int, phase: str):
-#         scheduler.wait_finish(f'provisioning_device_t{connection_id}', phase)
-# #endregion
-
-# #region Public
-#     def kill(self):
-#         self.is_alive = False
-# #endregion
-    
-
-
-#     def provisioning_device(self, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
-#                             unicast_address: bytes):
-#         log.log('Opening Link...')
-#         self.__gprov_layer.open_link(device_uuid)
-#         log.log('Link Open')
-
-#         try:
-#             log.log('Invitation Phase')
-#             self.__invitation_prov_phase()
-#             log.log('Exchanging Public Keys Phase')
-#             self.__exchanging_pub_keys_prov_phase()
-#             log.log('Authentication Phase')
-#             self.__authentication_prov_phase()
-#             log.log('Send Data Phase')
-#             self.__send_data_prov_phase(net_key, key_index, iv_index, unicast_address)
-
-#             log.log('Closing Link...')
-#             self.__gprov_layer.close_link(CLOSE_SUCCESS)
-#             log.log('Link Closed successful')
-#         except ProvisioningFail:
-#             self.__gprov_layer.close_link(CLOSE_FAIL)
-#             log.log('Link Closed with fail')
-#         except ProvisioningTimeout:
-#             self.__gprov_layer.close_link(CLOSE_TIMEOUT)
-#             log.log('Link Closed with timeout')
-
-    
-
-#     def __invitation_prov_phase(self):
-#         # send prov invite
-#         send_buff = Buffer()
-#         send_buff.push_u8(PROVISIONING_INVITE)
-#         send_buff.push_u8(self.default_attention_duration)
-#         log.dbg('Sending Invite PDU...')
-#         self.__gprov_layer.send_transaction(send_buff.buffer_be())
-
-#         self.__provisioning_invite = self.default_attention_duration
-
-#         # recv prov capabilities
-#         recv_buff = Buffer()
-#         log.dbg('Receiving Capabilities PDU...')
-#         content = self.__gprov_layer.get_transaction()
-#         recv_buff.push_be(content)
-#         opcode = recv_buff.pull_u8()
-#         self.__provisioning_capabilities = recv_buff.buffer_be()
-#         log.dbg(b'Opcode: ' + opcode)
-#         if opcode != PROVISIONING_CAPABILITIES:
-#             raise ProvisioningFail()
-#         self.__device_capabilities = Capabilities(recv_buff)
-
-#     def __exchanging_pub_keys_prov_phase(self):
-#         # send prov start (No OOB)
-#         start_buff = Buffer()
-#         start_buff.push_u8(PROVISIONING_START)
-#         start_buff.push_u8(0x00)
-#         start_buff.push_u8(self.public_key_type)
-#         start_buff.push_u8(self.authentication_method)
-#         start_buff.push_u8(self.authentication_action)
-#         start_buff.push_u8(self.authentication_size)
-#         self.__provisioning_start = start_buff.buffer_be()[1:]
-#         self.__auth_value = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-#         log.dbg('Sending Start PDU...')
-#         self.__gprov_layer.send_transaction(start_buff.buffer_be())
-
-#         # gen priv_key and pub_key
-#         self.__gen_keys()
-
-#         # send my pub key
-#         pub_key_buff = Buffer()
-#         pub_key_buff.push_u8(PROVISIONING_PUBLIC_KEY)
-#         pub_key_buff.push_be(self.__pub_key['x'])
-#         pub_key_buff.push_be(self.__pub_key['y'])
-#         log.dbg('Sending Public Keys PDU...')
-#         self.__gprov_layer.send_transaction(pub_key_buff.buffer_be())
-
-#         # recv device pub key
-#         recv_buff = Buffer()
-#         log.dbg('Receiving Public Key PDU...')
-#         content = self.__gprov_layer.get_transaction()
-#         log.dbg('Public Key PDU Received')
-#         recv_buff.push_be(content)
-#         opcode = recv_buff.pull_u8()
-#         if opcode != PROVISIONING_PUBLIC_KEY:
-#             raise ProvisioningFail()
-#         self.__device_pub_key = {
-#             'x': recv_buff.pull_be(32),
-#             'y': recv_buff.pull_be(32)
-#         }
-
-#         # calc ecdh_secret = P-256(priv_key, dev_pub_key)
-#         self.__calc_ecdh_secret()
-
-#     def __authentication_prov_phase(self):
-#         buff = Buffer()
-
-#         # calc crypto values need
-#         confirmation_inputs = self.__provisioning_invite + self.__provisioning_capabilities + \
-#                               self.__provisioning_start + self.__pub_key['x'] + self.__pub_key['y'] + \
-#                               self.__device_pub_key['x'] + self.__device_pub_key['y']
-#         self.__confirmation_salt = self.__s1(confirmation_inputs)
-#         confirmation_key = self.__k1(self.__ecdh_secret['x'], self.__confirmation_salt, b'prck')
-#         # confirmation_key = self.__k1(self.__ecdh_secret['x'] + self.__ecdh_secret['y'], self.__confirmation_salt,
-#         #                              b'prck')
-
-#         self.__gen_random_provisioner()
-
-#         # send confirmation provisioner
-#         confirmation_provisioner = self.__aes_cmac(confirmation_key, self.__random_provisioner + self.__auth_value)
-#         buff.push_be(confirmation_provisioner)
-#         log.dbg('Sending Confirmation PDU...')
-#         self.__gprov_layer.send_transaction(buff.buffer_be())
-
-#         # recv confiramtion device
-#         log.dbg('Receiving Confirmation PDU...')
-#         recv_confirmation_device = self.__recv(opcode_verification=PROVISIONING_CONFIRMATION)
-
-#         # send random provisioner
-#         buff.clear()
-#         buff.push_be(self.__random_provisioner)
-#         log.dbg('Sending Random PDU...')
-#         self.__gprov_layer.send_transaction(buff.buffer_be())
-
-#         # recv random device
-#         log.dbg('Receiving Random PDU...')
-#         self.__random_device = self.__recv(opcode_verification=PROVISIONING_RANDOM)
-
-#         # check info
-#         calc_confiramtion_device = self.__aes_cmac(confirmation_key, self.__random_device + self.__auth_value)
-
-#         if recv_confirmation_device != calc_confiramtion_device:
-#             raise ProvisioningFail()
-
-#     def __send_data_prov_phase(self, net_key: bytes, key_index: int, iv_index: bytes, unicast_address: bytes):
-#         net_key = net_key
-#         key_index = int(key_index).to_bytes(2, 'big')
-#         flags = b'\x00'
-#         iv_index = iv_index
-#         unicast_address = unicast_address
-
-#         provisioning_salt = self.__s1(self.__confirmation_salt + self.__random_provisioner + self.__random_device)
-#         session_key = self.__k1(self.__ecdh_secret['x'], provisioning_salt, b'prsk')
-#         session_nonce = self.__k1(self.__ecdh_secret['x'], provisioning_salt, b'prsn')
-#         # session_key = self.__k1(self.__ecdh_secret['x'] + self.__ecdh_secret['y'], self.__provisioning_salt, b'prsk')
-#         # session_nonce = self.__k1(self.__ecdh_secret['x'] + self.__ecdh_secret['y'], self.__provisioning_salt,
-#                                   # b'prsn')
-#         provisioning_data = net_key + key_index + flags + iv_index + unicast_address
-
-#         encrypted_provisioning_data, provisioning_data_mic = self.__aes_ccm(session_key, session_nonce,
-#                                                                             provisioning_data)
-
-#         buff = Buffer()
-#         buff.push_be(encrypted_provisioning_data)
-#         buff.push_be(provisioning_data_mic)
-#         log.dbg('Sending Provisioning Data PDU...')
-#         self.__gprov_layer.send_transaction(buff.buffer_be())
-
-#         log.dbg('Receiving Complete PDU...')
-#         self.__recv(opcode_verification=PROVISIONING_COMPLETE)
-
-#     def __recv(self, opcode_verification=None):
-#         buff = Buffer()
-#         buff.push_be(self.__gprov_layer.get_transaction())
-#         opcode = buff.pull_u8()
-#         content = buff.buffer_be()
-#         if opcode == PROVISIONING_FAILED:
-#             raise ProvisioningFail()
-#         if opcode_verification is not None:
-#             if opcode != opcode_verification:
-#                 raise ProvisioningFail()
-#             return content
-#         else:
-#             return opcode, content
-
-#     def __gen_keys(self):
-
-#         self.__sk = SigningKey.generate(curve=NIST256p)
-#         self.__vk = self.__sk.get_verifying_key()
-
-#         self.__priv_key = self.__sk.to_string()
-#         self.__pub_key = {
-#             'x': self.__vk.to_string()[0:32],
-#             'y': self.__vk.to_string()[32:64]
-#         }
-
-#     # TODO: ECDHsecret is 32 bytes or 64 bytes
-#     def __calc_ecdh_secret(self):
-#         secret = self.__sk.privkey.secret_multiplier * self.__vk.pubkey.point
-
-#         self.__ecdh_secret = {
-#             'x': secret.x().to_bytes(32, 'big'),
-#             'y': secret.y().to_bytes(32, 'big')
-#         }
-
-#     def __s1(self, input_: bytes):
-#         zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-#         return self.__aes_cmac(zero, input_)
-
-#     def __k1(self, shared_secret: bytes, salt: bytes, msg: bytes):
-#         okm = self.__aes_cmac(salt, shared_secret)
-#         return self.__aes_cmac(okm, msg)
-
-#     def __gen_random_provisioner(self):
-#         self.__random_provisioner = get_random_bytes(16)
-
-#     def __aes_cmac(self, key: bytes, msg: bytes):
-#         cipher = CMAC.new(key, ciphermod=AES)
-#         cipher.update(msg)
-#         return cipher.digest()
-
-#     def __aes_ccm(self, key, nonce, data):
-#         cipher = AES.new(key, AES.MODE_CCM, nonce)
-#         return cipher.encrypt(data), cipher.digest()
+        log.succ(f'Device {connection_id} provisioned')
