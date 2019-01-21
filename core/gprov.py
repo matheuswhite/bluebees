@@ -17,6 +17,7 @@ log = Log('Gprov')
 LINK_TIMEOUT = 0x01
 CONNECTION_ALREADY_OPEN = 0x02
 TR_ACK_TIMEOUT = 0x03
+CONNECTION_CLOSE = 0x04
 
 class GenericProvisioner:
 
@@ -44,9 +45,8 @@ class GenericProvisioner:
                     conn.add_recv_message(recv_message)
 
                 except ConnectionClose as ex:
-                    log.err(f'Connection {conn.link_id} closed by device. Reason: {ex.reason}')
                     conn.is_alive = False
-                    del self.connections[k]
+                    # del self.connections[k]
                 finally:
                     yield
 
@@ -102,17 +102,19 @@ class GenericProvisioner:
     tr_recv = get_tr_task.get_first_result()
 
     Errors
-        None
+        -> CONNECTION_CLOSE
     """
     def get_transaction_t(self, self_task: Task, connection_id: int):
+        self._handle_link_close_message(connection_id)
         conn = self.connections[connection_id]
         
         log.dbg('Waiting transaction')
         tr_recv = None
         while tr_recv is None:
+            self._handle_link_close_message(connection_id)
             tr_recv = conn.get_last_transaction()
             yield
-        
+
         log.dbg(f'Transaction Received: {tr_recv}')
 
         # create ack message and send it
@@ -130,8 +132,10 @@ class GenericProvisioner:
 
     Errors
         -> TR_ACK_TIMEOUT
+        -> CONNECTION_CLOSE
     """
     def send_transaction_t(self, self_task: Task, connection_id: int, content: bytes):
+        self._handle_link_close_message(connection_id)
         messages = self.connections[connection_id].mount_snd_transaction(content)
 
         for msg in messages:
@@ -140,16 +144,20 @@ class GenericProvisioner:
             delay = randint(20, 50) / 1000.0
             sleep(delay)
 
+        self._handle_link_close_message(connection_id)
         dev_conn = self.connections[connection_id]
 
         # waiting tr ack
+        self._handle_link_close_message(connection_id)
         self_task.wait_event(dev_conn.tr_ack_event, timeout=30)
         yield
 
+        self._handle_link_close_message(connection_id)
         if not dev_conn.tr_ack_event.isSet() or self_task.timer.elapsed_time > self_task.timer.timeout:
             log.err(f'Cannot receive tr ack. Link_id {dev_conn.link_id}, Content {content}')
             raise TaskError(TR_ACK_TIMEOUT, f'Wait Transaction Ack timeout. Transaction: {content}')
 
+        self._handle_link_close_message(connection_id)
         dev_conn.tr_ack_event.clear()
         log.succ('Transaction ack received')
 #endregion
@@ -157,6 +165,10 @@ class GenericProvisioner:
 #region Private
     def _is_ack_message(self, message: bytes):
         return message[0:1] == b'0x07'
+
+    def _handle_link_close_message(self, connection_id: int):
+        if not self.connections[connection_id].is_alive:
+            raise TaskError(CONNECTION_CLOSE, f'Connection {conn.link_id} closed by device')
 #endregion
 
 #region Publc

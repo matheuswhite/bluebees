@@ -1,5 +1,5 @@
 from core.scheduling import scheduler, Task, TaskError
-from core.gprov import GenericProvisioner
+from core.gprov import GenericProvisioner, CONNECTION_CLOSE
 from core.dongle import DongleDriver
 from core.log import Log
 from ecdsa import NIST256p, SigningKey
@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.ciphers import algorithms
 from core.prov_data import ProvData
 
 
+LINK_CLOSE_FAIL = 0x02
 PROVISIONING_FAIL = 0x10
 PROVISIONING_TIMEOUT = 0x11
 
@@ -89,6 +90,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
         
         # recv prov capabilities
@@ -96,10 +99,17 @@ class Provisioning:
         self_task.wait_finish(get_tr_task)
         yield
 
+        if get_tr_task.has_error():
+            err: TaskError = get_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
+            raise TaskError(err.errno, err.message)
+
         tr = get_tr_task.get_first_result()
         opcode = tr[0]
         capabilities = tr[1:]
         if opcode != int.from_bytes(PROVISIONING_CAPABILITIES, 'big'):
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CAPABILITIES}')
         else:
             yield capabilities
@@ -131,6 +141,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
 
         log.dbg('Provisioning start message sent successful')
@@ -152,6 +164,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
 
         log.dbg('Public key message sent successful')
@@ -162,9 +176,16 @@ class Provisioning:
         self_task.wait_finish(get_tr_task)
         yield
         
+        if get_tr_task.has_error():
+            err: TaskError = get_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
+            raise TaskError(err.errno, err.message)
+
         tr = get_tr_task.get_first_result()
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_PUBLIC_KEY, 'big'):
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_PUBLIC_KEY}')
         
         dev_public_key = Point(curve=NIST256p.curve, 
@@ -214,6 +235,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
 
         log.dbg('Confirmation message sent successful')
@@ -224,9 +247,16 @@ class Provisioning:
         self_task.wait_finish(get_tr_task)
         yield
 
+        if get_tr_task.has_error():
+            err: TaskError = get_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
+            raise TaskError(err.errno, err.message)
+
         tr = get_tr_task.get_first_result()
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_CONFIRMATION, 'big'):
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_CONFIRMATION}')
         recv_confirmation_device = tr[1:]
         yield recv_confirmation_device
@@ -244,6 +274,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
 
         log.dbg('Random provisioner message sent successful')
@@ -254,9 +286,16 @@ class Provisioning:
         self_task.wait_finish(get_tr_task)
         yield
 
+        if get_tr_task.has_error():
+            err: TaskError = get_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
+            raise TaskError(err.errno, err.message)
+
         tr = get_tr_task.get_first_result()
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_RANDOM, 'big'):
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_RANDOM}')
         random_device = tr[1:]
         yield random_device
@@ -269,6 +308,7 @@ class Provisioning:
         log.dbg(f'calc: {calc_confiramtion_device}, recv: {recv_confirmation_device}')
 
         if recv_confirmation_device != calc_confiramtion_device:
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Confirmations not match')
 
         log.dbg('Authentication phase complete')
@@ -302,6 +342,8 @@ class Provisioning:
 
         if send_tr_task.has_error():
             err: TaskError = send_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(err.errno, err.message)
 
         log.dbg('Provisioning data message sent successful')
@@ -312,9 +354,16 @@ class Provisioning:
         self_task.wait_finish(get_tr_task)
         yield
 
+        if get_tr_task.has_error():
+            err: TaskError = get_tr_task.errors[0]
+            if err.errno != CONNECTION_CLOSE:
+                self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
+            raise TaskError(err.errno, err.message)
+
         tr = get_tr_task.get_first_result()
         opcode = tr[0]
         if opcode != int.from_bytes(PROVISIONING_COMPLETE, 'big'):
+            self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Receive message with opcode {opcode}, but expected {PROVISIONING_RANDOM}')
 
         log.dbg('Received provisioning complete message from device')
