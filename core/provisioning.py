@@ -15,7 +15,9 @@ from cryptography.hazmat.primitives.ciphers import algorithms
 from core.prov_data import ProvData
 
 
+LINK_CLOSE_SUCCESS = 0x00
 LINK_CLOSE_FAIL = 0x02
+
 PROVISIONING_FAIL = 0x10
 PROVISIONING_TIMEOUT = 0x11
 
@@ -114,6 +116,10 @@ class Provisioning:
         else:
             yield capabilities
 
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
     """
     Returns
         > start message content [bytes]
@@ -195,6 +201,10 @@ class Provisioning:
 
         log.dbg('Received public key message')
 
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
         # calc ecdh_secret = P-256(priv_key, dev_pub_key)
         ecdh_secret = self._calc_ecdh_secret(priv_key, dev_public_key)
         yield ecdh_secret
@@ -263,6 +273,10 @@ class Provisioning:
 
         log.dbg('Received confirmation message from device')
 
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
         # send random provisioner
         random_msg = PROVISIONING_RANDOM
         random_msg += random_provisioner
@@ -301,6 +315,10 @@ class Provisioning:
         yield random_device
 
         log.dbg('Received random message from device')
+
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
 
         # check info
         calc_confiramtion_device = self._aes_cmac(confirmation_key, random_device + auth_value)
@@ -368,8 +386,12 @@ class Provisioning:
 
         log.dbg('Received provisioning complete message from device')
 
+        log.dbg('Waiting a little bit')
+        self_task.wait_timer(5)
+        yield
+
         # close link
-        self.gprov.close_connection(connection_id, 0)
+        self.gprov.close_connection(connection_id, LINK_CLOSE_SUCCESS)
 
         log.dbg('Send provisioning data phase complete')
 
@@ -409,10 +431,6 @@ class Provisioning:
             log.err(f'exchange keys error: {exchange_keys_phase_task.errors[0].message}')
             raise TaskError(PROVISIONING_FAIL, 'Exchange keys phase error')
 
-        log.dbg('Waiting a little bit')
-        self_task.wait_timer(5)
-        yield
-
         # authentication phase
         log.dbg('authentication phase')
         authentication_phase_task = scheduler.spawn_task(self.authentication_phase_t, connection_id=connection_id,
@@ -431,10 +449,6 @@ class Provisioning:
         if authentication_phase_task.has_error():
             log.err(f'authentication error: {authentication_phase_task.errors[0].message}')
             raise TaskError(PROVISIONING_FAIL, 'Authentication phase error')
-
-        log.dbg('Waiting a little bit')
-        self_task.wait_timer(5)
-        yield
 
         # send provisioning data phase
         log.dbg('send provisioning data phase')
