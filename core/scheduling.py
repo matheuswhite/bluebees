@@ -27,6 +27,10 @@ class Timer:
     def is_enable(self):
         return self._is_enable
 
+    @is_enable.setter
+    def is_enable(self, value):
+        self._is_enable = value
+
     @property
     def is_over(self):
         return self._is_over
@@ -126,6 +130,7 @@ class Task:
             self.timer.tick()
             if self.timer.is_over:
                 self._status = 'idle'
+                self.timer.is_enable = False
     #endregion
 
     #region Public

@@ -2,10 +2,10 @@ from core.scheduling import scheduler, Task
 from core.utils import crc8
 from core.dongle import ADV_MTU
 from threading import Event
-from core.log import Log
+from core.log import Log, LogLevel
 from core.dongle import DongleDriver
 
-log = Log('DeviceConnection')
+log = Log('DeviceConnection', LogLevel.Succ)
 
 #region Exceptions
 class ConnectionClose(Exception):

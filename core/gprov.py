@@ -3,7 +3,7 @@ from core.link import Link
 from core.transaction import Transaction
 from threading import Event
 from time import sleep
-from core.log import Log
+from core.log import Log, LogLevel
 from core.scheduling import scheduler, Task, TaskError
 from core.utils import crc8
 from core.dongle import ADV_MTU
@@ -12,7 +12,7 @@ from enum import Enum
 from random import randint
 from core.dongle import DongleDriver
 
-log = Log('Gprov')
+log = Log('Gprov', LogLevel.Succ)
 
 LINK_TIMEOUT = 0x01
 CONNECTION_ALREADY_OPEN = 0x02
@@ -82,9 +82,9 @@ class GenericProvisioner:
             yield
 
             if not dev_conn.open_ack_evt.isSet() or self_task.timer.elapsed_time > self_task.timer.timeout:
-                log.err(f'Connection open fail. Link_id {conn.link_id}')
-                dev_conn.is_alive = False
-                del self.connections[connection_id]
+                log.err(f'Connection open fail. Link_id {dev_conn.link_id}')
+                # dev_conn.is_alive = False
+                # del self.connections[connection_id]
                 raise TaskError(LINK_TIMEOUT, f'Link {connection_id} open timeout')
 
             dev_conn.open_ack_evt.clear()
