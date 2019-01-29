@@ -33,7 +33,7 @@ class NetworkLayer:
 
     def _encrypt(self, is_control_message: bool, dst: bytes, transport_pdu: bytes, encryption_key: bytes,
                  network_nonce: bytes):
-        aes_ccm_result = CRYPTO.aes_ccm(encryption_key, network_nonce, dst + transport_pdu, b'')
+        aes_ccm_result = CRYPTO.aes_ccm_encrypt(encryption_key, network_nonce, dst + transport_pdu, b'')
         encrypted_data = aes_ccm_result[0:-8] if is_control_message else aes_ccm_result[0:-4]
         net_mic = aes_ccm_result[-8:] if is_control_message else aes_ccm_result[-4:]
         return encrypted_data[0:2], encrypted_data[2:], net_mic
@@ -47,19 +47,19 @@ class NetworkLayer:
     def _obsfucate(self, ctl: int, ttl: int, seq: bytes, src: bytes, encrypted_dst: bytes,
                    encrypted_transport_pdu: bytes, net_mic: bytes, privacy_key: bytes):
         privacy_random = (encrypted_dst + encrypted_transport_pdu + net_mic)[0:7]
-        pecb = CRYPTO.e(privacy_key, b'\x00\x00\x00\x00\x00' + self.iv_index.to_bytes(4, 'big') + privacy_random)
+        pecb = CRYPTO.e_encrypt(privacy_key, b'\x00\x00\x00\x00\x00' + self.iv_index.to_bytes(4, 'big') + privacy_random)
         obsfucated_data = self._xor((ctl | ttl).to_bytes(1, 'big') + seq + src, pecb[0:6])
         return obsfucated_data
 
     def _clean_message(self, obfuscated: bytes, privacy_key: bytes, encrypted: bytes):
         privacy_random = encrypted[0:7]
-        pecb = CRYPTO.e(privacy_key, b'\x00\x00\x00\x00\x00' + self.iv_index.to_bytes(4, 'big') + privacy_random)
+        pecb = CRYPTO.e_decrypt(privacy_key, b'\x00\x00\x00\x00\x00' + self.iv_index.to_bytes(4, 'big') + privacy_random)
         clean_result = self._xor(obfuscated, pecb[0:6])
         return clean_result
 
     def _authenticate(self, is_control_message: bool, encrypted_data: bytes, net_mic: bytes, encryption_key: bytes,
                       network_nonce: bytes):
-        aes_ccm_result = CRYPTO.aes_ccm(encryption_key, network_nonce, encrypted_data, b'')
+        aes_ccm_result = CRYPTO.aes_ccm_decrypt(encryption_key, network_nonce, encrypted_data, b'')
         decrypted_data = aes_ccm_result[0:-8] if is_control_message else aes_ccm_result[0:-4]
         calc_net_mic = aes_ccm_result[-8:] if is_control_message else aes_ccm_result[-4:]
         if calc_net_mic != net_mic:
