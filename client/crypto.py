@@ -5,6 +5,9 @@ class Crypto:
     def __init__(self):
         pass
 
+    def e(self, key, plaintext):
+        raise NotImplementedError
+
     def aes_cmac(self, key, text):
         raise NotImplementedError
 
