@@ -15,7 +15,7 @@ class Crypto:
     def e_encrypt(self, key: bytes, plaintext: bytes):
         cipher = AES.new(key, mode=AES.MODE_ECB)
         msg = cipher.encrypt(plaintext)
-        return msg
+        return msg[0:6]
 
     def e_decrypt(self, key: bytes, ciphertext: bytes):
         cipher = AES.new(key, mode=AES.MODE_ECB)
@@ -51,17 +51,17 @@ class Crypto:
         t1 = self.aes_cmac(t, t0 + p + b'\x01')
         t2 = self.aes_cmac(t, t1 + p + b'\x02')
         t3 = self.aes_cmac(t, t2 + p + b'\x03')
-        return (int.from_bytes((t1 + t2 + t3), 'big') % (2**263)).to_bytes(48, 'big')
+        return (int.from_bytes((t1 + t2 + t3), 'big') % (2**263)).to_bytes(33, 'big')
 
     def k3(self, n: bytes):
         salt = self.s1(b'smk3')
         t = self.aes_cmac(salt, n)
-        return (int.from_bytes(self.aes_cmac(t, b'id64' + b'\x01'), 'big') % (2**64)).to_bytes(16, 'big')
+        return (int.from_bytes(self.aes_cmac(t, b'id64' + b'\x01'), 'big') % (2**64)).to_bytes(8, 'big')
 
     def k4(self, n: bytes):
         salt = self.s1(b'smk4')
         t = self.aes_cmac(salt, n)
-        return (int.from_bytes(self.aes_cmac(t, b'id6' + b'\x01'), 'big') % (2 ** 6)).to_bytes(16, 'big')
+        return (int.from_bytes(self.aes_cmac(t, b'id6' + b'\x01'), 'big') % (2 ** 6)).to_bytes(1, 'big')
 
 
 CRYPTO = Crypto()
