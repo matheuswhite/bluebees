@@ -12,30 +12,20 @@ class Crypto:
     def __init__(self):
         pass
 
-    def e_encrypt(self, key: bytes, plaintext: bytes):
+    def e(self, key: bytes, plaintext: bytes):
         cipher = AES.new(key, mode=AES.MODE_ECB)
         msg = cipher.encrypt(plaintext)
         return msg[0:6]
-
-    def e_decrypt(self, key: bytes, ciphertext: bytes):
-        cipher = AES.new(key, mode=AES.MODE_ECB)
-        msg = cipher.decrypt(ciphertext)
-        return msg
 
     def aes_cmac(self, key: bytes, text: bytes):
         c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
         c.update(text)
         return c.finalize()
 
-    def aes_ccm_encrypt(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
+    def aes_ccm(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
         aesccm = AESCCM(key, tag_length=8)
         ct = aesccm.encrypt(nonce, text, adata)
-        return ct
-
-    def aes_ccm_decrypt(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
-        aesccm = AESCCM(key, tag_length=8)
-        ct = aesccm.decrypt(nonce, text, adata)
-        return ct
+        return ct[0:13]
 
     def s1(self, text: bytes):
         return self.aes_cmac(key=b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', text=text)

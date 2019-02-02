@@ -35,12 +35,12 @@ def test_k2():
 
 
 def test_k3():
-    expected_network_key = a2b_hex('ff046958233db014')
+    expected_network_id = a2b_hex('ff046958233db014')
     n = a2b_hex('f7a2a44f8e8a8029064f173ddc1e2b00')
 
-    network_key = CRYPTO.k3(n)
+    network_id = CRYPTO.k3(n)
 
-    assert network_key == expected_network_key
+    assert network_id == expected_network_id
 
 
 def test_k4():
@@ -59,35 +59,58 @@ def test_e_encrypt():
 
     assert len(privacy_key) == 16
     assert len(plaintext) == 16
-    assert CRYPTO.e_encrypt(privacy_key, plaintext) == expected
+    assert CRYPTO.e(privacy_key, plaintext) == expected
+
+
+def xor(a, b):
+    c = b''
+    for x in range(len(a)):
+        c += int(a[x] ^ b[x]).to_bytes(1, 'big')
+    return c
 
 
 def test_xor():
     expected = a2b_hex('eca487516765')
     a = a2b_hex('6ca487507564')
     b = a2b_hex('800000011201')
-    c = b''
-    for x in range(len(a)):
-        c += int(a[x] ^ b[x]).to_bytes(1, 'big')
 
-    assert expected == c
+    assert xor(a, b) == expected
 
 
 def test_e_decrypt():
+    privacy_random = a2b_hex('b5e5bfdacbaf6cb7fb6bff871f035444ce83a670df')[0:7]
+    privacy_key = a2b_hex('8b84eedec100067d670971dd2aa700cf')
+    iv_index = a2b_hex('12345678')
+    plain_text = b'\x00\x00\x00\x00\x00' + iv_index + privacy_random
+    pecb = CRYPTO.e(privacy_key, plain_text)
+    obfuscated_data = a2b_hex('eca487516765')
 
-    assert False
+    expected_pecb = a2b_hex('6ca487507564')
+    expected = a2b_hex('800000011201')
+
+    assert pecb == expected_pecb
+    assert xor(obfuscated_data, pecb) == expected
 
 
 def test_aes_ccm_encrypt():
-    assert False
+    dst = a2b_hex('fffd')
+    transport_pdu = a2b_hex('034b50057e400000010000')
+    network_nonce = a2b_hex('00800000011201000012345678')
+    encryption_key = a2b_hex('0953fa93e7caac9638f58820220a398e')
+
+    expected_result = a2b_hex('b5e5bfdacbaf6cb7fb6bff871f')
+    result = CRYPTO.aes_ccm(encryption_key, network_nonce, dst + transport_pdu, b'')
+    assert result == expected_result
 
 
 def test_aes_ccm_decrypt():
-    assert False
+    encrypted_pdu = a2b_hex('b5e5bfdacbaf6cb7fb6bff871f')
+    network_nonce = a2b_hex('00800000011201000012345678')
+    encryption_key = a2b_hex('0953fa93e7caac9638f58820220a398e')
 
-
-def test_aes_cmac():
-    assert False
+    expected_result = a2b_hex('fffd034b50057e400000010000')
+    result = CRYPTO.aes_ccm(encryption_key, network_nonce, encrypted_pdu, b'')
+    assert result == expected_result
 
 
 if __name__ == '__main__':
@@ -101,4 +124,3 @@ if __name__ == '__main__':
     test_e_decrypt()
     test_aes_ccm_encrypt()
     test_aes_ccm_decrypt()
-    test_aes_cmac()
