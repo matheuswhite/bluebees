@@ -16,7 +16,7 @@ class NetworkLayer:
 
     def __init__(self, driver: DongleDriver):
         self.driver = driver
-        self.new_message_signal = Signal(args=['msg'])
+        self.new_message_signal = Signal(args=['src', 'dst', 'pdu'])
 
         self.is_alive = True
         self.iv_index = 0x0000_0000
@@ -69,7 +69,7 @@ class NetworkLayer:
             transport_pdu = decrypted_data[2:]
             return True, dst, transport_pdu
 
-    def _handle_recv_message(self, msg):
+    def _handle_recv_pdu(self, msg):
         ivi = (msg[0] & 0x80) >> 7
         nid = msg[0] & 0x7f
         encryption_key = self.network_key_lookup_table[nid][0]
@@ -90,7 +90,7 @@ class NetworkLayer:
         if not is_valid:
             return
 
-        self.new_message_signal.emit(msg=(src, dst, transport_pdu))
+        self.new_message_signal.emit(src=src, dst=dst, pdu=transport_pdu)
 
     def kill(self):
         self.is_alive = False
@@ -99,16 +99,12 @@ class NetworkLayer:
     def network_id(cls, network_key: bytes):
         return CRYPTO.k3(network_key)
 
-    """
-    Return the network_id of network_key passed as argument
-    """
-    def add_network_key(self, network_key: bytes) -> bytes:
+    def add_network_key(self, network_key: bytes):
         network_id = self.network_id(network_key)
         self.network_keys[network_id] = network_key
-        return network_id
 
-    def send_transport_pdu(self, src_addr: MeshAddress, dst_addr: MeshAddress, transport_pdu: bytes,
-                           is_control_message: bool, ttl: int, network_id: bytes):
+    def send_pdu(self, src_addr: MeshAddress, dst_addr: MeshAddress, transport_pdu: bytes, is_control_message: bool,
+                 ttl: int, network_id: bytes):
         if not (1 <= len(transport_pdu) <= 16):
             return
 
@@ -134,9 +130,9 @@ class NetworkLayer:
 
         self.seq += 1
 
-    def recv_transport_pdu_t(self, self_task: Task):
+    def recv_pdu_t(self, self_task: Task):
         while self.is_alive:
-            msg = self.driver.recv('message')
-            if msg is not None:
-                self._handle_recv_message(msg)
+            pdu = self.driver.recv('message')
+            if pdu is not None:
+                self._handle_recv_pdu(pdu)
             yield
