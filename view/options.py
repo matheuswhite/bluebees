@@ -51,4 +51,4 @@ class Options(Element):
                 if val == back_cmd:
                     return back_cmd
             is_valid, val_int = self._error_handler(val)
-        return self.options[val_int]
+        return self.options[val_int-1]
