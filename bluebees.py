@@ -4,6 +4,7 @@ from view.page import Page
 from typing import List
 from clint.textui import indent, puts, colored
 from view.create.node import create_node_page
+from view.create.network import create_network_page
 
 
 def rebuild_cmd(args: List):
@@ -26,6 +27,7 @@ def create_main_page(pages: List[Page]):
             current_dict = current_dict[a]
             last_argument = a
         last_dict[last_argument] = p
+        current_dict = main_page
     return main_page
 
 
@@ -33,7 +35,8 @@ def main():
     args = Args()
 
     main_page = create_main_page([
-        create_node_page
+        create_node_page,
+        create_network_page
     ])
 
     try:

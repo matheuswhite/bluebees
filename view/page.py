@@ -33,4 +33,4 @@ class Page:
                 x += 1
                 self.last_result = result
                 self.element_results[x] = result
-        puts(colored.green(f'Results: {self.element_results}'))
+        # puts(colored.green(f'Results: {self.element_results}'))

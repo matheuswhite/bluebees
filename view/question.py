@@ -23,4 +23,6 @@ class Question(Element):
                 puts(colored.blue(self.question + self.end_quote), newline=False)
                 val = input(' ')
                 is_valid = self.valid_answer_check(val)
+                if not is_valid:
+                    puts(colored.red('INVALID NAME. This name already exist or contains invalid characters'))
         return val
