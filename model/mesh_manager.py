@@ -1,14 +1,7 @@
-from client.network_layer import NetworkLayer
 from random import randint
+from model.network import Network
 import json
 import os
-
-
-class Network:
-
-    def __init__(self, key: bytes):
-        self.key = key
-        self.index = NetworkLayer.network_id(self.key)
 
 
 class MeshManager:

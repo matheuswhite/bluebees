@@ -2,7 +2,7 @@ from view.page import Page
 from view.question import *
 from view.element import Element
 from clint.textui import puts, colored, indent
-from client.mesh_manager import mesh_manager
+from model.mesh_manager import mesh_manager
 
 
 def _network_name_check(name: str):
