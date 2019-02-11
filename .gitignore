@@ -1,5 +1,5 @@
 *.idea/*
 *.vscode/*
 *lib/*
-*/__pycache__/*
+__pycache__/
 tests/.cache/*
