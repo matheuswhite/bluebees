@@ -4,17 +4,12 @@ from view.options import *
 from model.mesh_manager import mesh_manager
 
 
-def _tf_check(answer: str):
-    answer = answer.lower()
-    return answer in ['yes', 'y', 'no', 'n']
-
-
 def _node_name_check(name: str):
     return True
 
 
 def _get_devices():
-    return ['device 1234', 'device 1024', 'device 5991']
+    return [f'Device {dev.uuid.hex()}' for dev in list(mesh_manager.devices.values())]
 
 
 def _list_networks():

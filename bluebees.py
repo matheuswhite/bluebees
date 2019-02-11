@@ -5,6 +5,7 @@ from typing import List
 from clint.textui import indent, puts, colored
 from view.create.node import create_node_page
 from view.create.network import create_network_page
+from view.scan.device import scan_device_page
 
 
 def rebuild_cmd(args: List):
@@ -36,7 +37,8 @@ def main():
 
     main_page = create_main_page([
         create_node_page,
-        create_network_page
+        create_network_page,
+        scan_device_page
     ])
 
     try:

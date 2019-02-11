@@ -13,6 +13,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import cmac
 from cryptography.hazmat.primitives.ciphers import algorithms
 from core.prov_data import ProvData
+from model.mesh_manager import mesh_manager
 
 
 LINK_CLOSE_SUCCESS = 0x00
@@ -34,6 +35,7 @@ PROVISIONING_FAILED = b'\x09'
 
 log = Log('Provisioning')
 
+
 class Provisioning:
 
     def __init__(self, gprov: GenericProvisioner, dongle_driver: DongleDriver):
@@ -41,6 +43,7 @@ class Provisioning:
         self.gprov = gprov
         self.dongle_driver = dongle_driver
         self.default_attention_duration = 5
+        self.devices = [dev.uuid for dev in list(mesh_manager.devices.values())]
 
     def _gen_keys(self):
         sk = SigningKey.generate(curve=NIST256p)
@@ -76,6 +79,20 @@ class Provisioning:
         aesccm = AESCCM(key, tag_length=8)
         ct = aesccm.encrypt(nonce, data, adata)
         return ct[0:25], ct[25:]
+
+    def kill(self):
+        self.is_alive = False
+
+    def scan(self):
+        read_data = None
+        while read_data is None:
+            read_data = self.dongle_driver.recv('beacon')
+            if read_data is None:
+                continue
+            if read_data[1:17] in self.devices:
+                read_data = None
+        self.devices.append(read_data[1:17])
+        return read_data[1:17]
 
     """
     Returns
