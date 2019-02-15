@@ -1,12 +1,12 @@
 from client.address import MeshAddress
-from client.lower_transport_layer import LowerTransportLayer
+from client.network_layer import NetworkLayer
 from signalslot.signal import Signal
 
 
 class UpperTransportLayer:
 
-    def __init__(self, lower_transport_layer: LowerTransportLayer):
-        self.lower_transport_layer = lower_transport_layer
+    def __init__(self, network_layer: NetworkLayer):
+        self.network_layer = network_layer
         self.lower_transport_layer.new_message_signal.connect(self._handle_pdu)
         self.lower_transport_layer.message_sent_signal.connect(self._handle_message_sent)
 

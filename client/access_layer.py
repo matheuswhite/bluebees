@@ -1,5 +1,5 @@
 from client.address import MeshAddress
-from client.upper_transport_layer import UpperTransportLayer
+from client.transport_layer import UpperTransportLayer
 from core.scheduling import *
 from threading import Event
 from signalslot.signal import Signal
