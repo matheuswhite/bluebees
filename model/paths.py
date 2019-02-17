@@ -5,6 +5,8 @@ import json
 # file types
 NETWORK_FILE_TYPE = '.network'
 DEVICE_FILE_TYPE = '.device'
+NODE_FILE_TYPE = '.node'
+
 
 # create bluebees folder, if not exist
 BLUEBEES_DIR_PATH = os.path.expanduser("~") + '/.bluebees/'
@@ -28,3 +30,12 @@ if not os.path.exists(BLUEBEES_DIR_PATH + DEVICE_LIST_FILE_NAME + DEVICE_FILE_TY
             'device_list': []
         }
         json.dump(device_list, device_list_file)
+
+# create node list, if not exist
+NODE_LIST_FILE_NAME = 'node_list'
+if not os.path.exists(BLUEBEES_DIR_PATH + NODE_LIST_FILE_NAME + NODE_FILE_TYPE):
+    with open(BLUEBEES_DIR_PATH + NODE_LIST_FILE_NAME + NODE_FILE_TYPE, 'w') as node_list_file:
+        node_list = {
+            'node_list': []
+        }
+        json.dump(node_list, node_list_file)

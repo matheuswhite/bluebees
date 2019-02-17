@@ -6,7 +6,7 @@ from model.mesh_manager import mesh_manager
 
 
 def _network_name_check(name: str):
-    nets = mesh_manager.networks.keys()
+    nets = list(mesh_manager.networks.keys())
     return name not in nets
 
 

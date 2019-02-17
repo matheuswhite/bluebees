@@ -8,7 +8,7 @@ class Device(Serializable):
     def __init__(self, uuid: bytes):
         super().__init__()
 
-        self.name = f'Device {uuid}'
+        self.name = f'Device {uuid.hex()}'
         self.uuid = uuid
 
     def save(self):

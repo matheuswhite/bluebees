@@ -89,7 +89,7 @@ class Provisioning:
             read_data = self.dongle_driver.recv('beacon')
             if read_data is None:
                 continue
-            if read_data[1:17] in self.devices:
+            if read_data[1:17] in self.devices or len(read_data) != 23:
                 read_data = None
         self.devices.append(read_data[1:17])
         return read_data[1:17]
