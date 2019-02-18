@@ -6,12 +6,12 @@ import json
 
 class Network(Serializable):
 
-    def __init__(self, name: str, key: bytes, iv_index=b'\x00\x00\x00\x00'):
+    def __init__(self, name: str, key: bytes, index: bytes, iv_index=b'\x00\x00\x00\x00'):
         super().__init__()
 
         self.name = name
         self.key = key
-        self.index = CRYPTO.k3(self.key)
+        self.index = index
         self.iv_index = iv_index
 
     def save(self):
@@ -33,4 +33,5 @@ class Network(Serializable):
     def load(cls, name: str):
         with open(BLUEBEES_DIR_PATH + f'{name}' + NETWORK_FILE_TYPE) as net_file:
             net_data = json.load(net_file)
-            return cls(net_data['net_name'], bytes.fromhex(net_data['key']), bytes.fromhex(net_data['iv_index']))
+            return cls(net_data['net_name'], bytes.fromhex(net_data['key']), bytes.fromhex(net_data['index']),
+                       bytes.fromhex(net_data['iv_index']))

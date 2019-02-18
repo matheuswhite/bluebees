@@ -6,6 +6,7 @@ from time import time
 from threading import Event
 from typing import List
 from core.path import Path
+from core.utils import threaded
 
 """
 WARNING
@@ -249,6 +250,7 @@ class Scheduler:
 
         return task
 
+    # @threaded
     def run(self):
         while self.is_alive:
             # check is has job in the queue

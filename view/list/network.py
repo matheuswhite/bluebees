@@ -10,7 +10,7 @@ class ListNetworkCommand(Element):
         super().__init__()
 
     def run(self, page):
-        nets = mesh_manager.networks.keys()
+        nets = list(mesh_manager.networks.keys())
         if len(nets) == 0:
             with indent(len(page.quote) + 1, quote=page.quote):
                 puts(colored.yellow("Nenhuma rede criada. Use o comando 'create network' para criar uma nova rede"))

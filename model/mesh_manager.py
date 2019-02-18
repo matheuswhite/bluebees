@@ -23,6 +23,19 @@ class MeshManager:
         self._load_networks()
         self._load_nodes()
 
+    def remove_device(self, dev_name: str):
+        del self.devices[dev_name]
+        with open(BLUEBEES_DIR_PATH + DEVICE_LIST_FILE_NAME + DEVICE_FILE_TYPE) as device_list_file_:
+            device_list_ = json.load(device_list_file_)
+            device_list_ = device_list_['device_list']
+            for x in range(len(device_list_)):
+                if device_list_[x] == dev_name:
+                    del device_list_[x]
+                    break
+        with open(BLUEBEES_DIR_PATH + DEVICE_LIST_FILE_NAME + DEVICE_FILE_TYPE, 'w') as device_list_file_:
+            device_list_ = {'device_list': device_list_}
+            json.dump(device_list_, device_list_file_)
+
     def new_device(self, dev_uuid: bytes):
         dev = Device(dev_uuid)
         self.devices[dev.name] = dev
@@ -30,7 +43,7 @@ class MeshManager:
         return dev
 
     def new_network(self, net_name: str):
-        self.networks[net_name] = Network(net_name, self._gen_new_network_key())
+        self.networks[net_name] = Network(net_name, self._gen_new_network_key(), self._gen_new_network_key_index())
         self.networks[net_name].save()
         return self.networks[net_name]
 
@@ -39,7 +52,7 @@ class MeshManager:
             raise Exception('Net name unknown')
         node = Node(node_name, net_name, self._gen_new_unicast_address())
         self.nodes[node_name] = node
-        node.save()
+        # node.save()
         return node
 
     def _load_devices(self):
@@ -57,6 +70,14 @@ class MeshManager:
             key = randint(0, 2**(key_size*8))
         return key.to_bytes(key_size, 'big')
 
+    def _gen_new_network_key_index(self):
+        key_index_size = 2
+        key_index = randint(0, 2 ** (key_index_size * 8))
+        key_indexs_allocated = (n.index for n in list(self.networks.values()))
+        while key_index.to_bytes(key_index_size, 'big') in key_indexs_allocated:
+            key_index = randint(0, 2 ** (key_index_size * 8))
+        return key_index.to_bytes(key_index_size, 'big')
+
     def _load_networks(self):
         with open(BLUEBEES_DIR_PATH + NET_LIST_FILE_NAME + NETWORK_FILE_TYPE) as net_list_file_:
             net_list_ = json.load(net_list_file_)
@@ -69,7 +90,7 @@ class MeshManager:
         addr = randint(0, 2 ** (addr_size * 8))
         addrs_allocated = (n.unicast_address for n in list(self.nodes.values()))
         while addr.to_bytes(addr_size, 'big') in addrs_allocated:
-            key = randint(0, 2 ** (addr_size * 8))
+            addr = randint(0, 2 ** (addr_size * 8))
         return addr.to_bytes(addr_size, 'big')
 
     def _load_nodes(self):

@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives import cmac
 from cryptography.hazmat.primitives.ciphers import algorithms
 from core.prov_data import ProvData
 from model.mesh_manager import mesh_manager
+from clint.textui import indent, colored, puts
 
 
 LINK_CLOSE_SUCCESS = 0x00
@@ -34,6 +35,7 @@ PROVISIONING_COMPLETE = b'\x08'
 PROVISIONING_FAILED = b'\x09'
 
 log = Log('Provisioning')
+log.disable()
 
 
 class Provisioning:
@@ -355,6 +357,8 @@ class Provisioning:
         provisioning_data_msg += encrypted_provisioning_data
         provisioning_data_msg += provisioning_data_mic
 
+        log.log(f'{len(network_key)}/{len(key_index)}/{len(flags)}/{len(iv_index)}/{len(unicast_address)}')
+
         log.dbg('Sending provisioning data message')
         send_tr_task = scheduler.spawn_task(self.gprov.send_transaction_t, connection_id=connection_id, content=provisioning_data_msg)
         self_task.wait_finish(send_tr_task)
@@ -396,6 +400,7 @@ class Provisioning:
     def provisioning_device_t(self, self_task: Task, connection_id: int, device_uuid: bytes, net_key: bytes, key_index: int, iv_index: bytes,
                                 unicast_address: bytes):
         # open phase
+        puts(colored.blue(f'Tentando se conectar com o dispositivo...'))
         log.dbg('open connection')
         open_task = scheduler.spawn_task(self.gprov.open_connection_t, dev_uuid=device_uuid, connection_id=connection_id)
         self_task.wait_finish(open_task)
@@ -408,7 +413,10 @@ class Provisioning:
                 self.gprov.close_connection(connection_id, LINK_CLOSE_FAIL)
             raise TaskError(PROVISIONING_FAIL, f'Cannot open connection {connection_id}')
 
+        puts(colored.green(f'Conexão estabelecida.'))
+
         # invite phase
+        puts(colored.blue(f'Configuração em 0%.'))
         log.dbg('invite phase')
         invite_phase_task = scheduler.spawn_task(self.invitation_phase_t, connection_id=connection_id)
         self_task.wait_finish(invite_phase_task)
@@ -425,9 +433,10 @@ class Provisioning:
         yield
 
         # exchange keys phase
+        puts(colored.blue(f'Configuração em 25%.'))
         log.dbg('exchange keys phase')
         exchange_keys_phase_task = scheduler.spawn_task(self.exchange_keys_phase_t, connection_id=connection_id,
-                                                        public_key_type=b'\x00', authentication_method=b'\x00', 
+                                                        public_key_type=b'\x00', authentication_method=b'\x00',
                                                         authentication_action=b'\x00', authentication_size=b'\x00')
         self_task.wait_finish(exchange_keys_phase_task)
         yield
@@ -441,16 +450,17 @@ class Provisioning:
         yield
 
         # authentication phase
+        puts(colored.blue(f'Configuração em 50%.'))
         log.dbg('authentication phase')
         authentication_phase_task = scheduler.spawn_task(self.authentication_phase_t, connection_id=connection_id,
-                                                        provisioning_invite=invite_phase_task.results[0].to_bytes(1, 'big'), 
+                                                        provisioning_invite=invite_phase_task.results[0].to_bytes(1, 'big'),
                                                         provisioning_capabilities=invite_phase_task.results[1],
-                                                        provisioning_start=exchange_keys_phase_task.results[0], 
-                                                        public_key_x=exchange_keys_phase_task.results[1].x().to_bytes(32, 'big'), 
+                                                        provisioning_start=exchange_keys_phase_task.results[0],
+                                                        public_key_x=exchange_keys_phase_task.results[1].x().to_bytes(32, 'big'),
                                                         public_key_y=exchange_keys_phase_task.results[1].y().to_bytes(32, 'big'),
                                                         device_public_key_x=exchange_keys_phase_task.results[3].x().to_bytes(32, 'big'),
-                                                        device_public_key_y=exchange_keys_phase_task.results[3].y().to_bytes(32, 'big'), 
-                                                        ecdh_secret=exchange_keys_phase_task.results[4].to_bytes(32, 'big'), 
+                                                        device_public_key_y=exchange_keys_phase_task.results[3].y().to_bytes(32, 'big'),
+                                                        ecdh_secret=exchange_keys_phase_task.results[4].to_bytes(32, 'big'),
                                                         auth_value=exchange_keys_phase_task.results[5])
         self_task.wait_finish(authentication_phase_task)
         yield
@@ -464,21 +474,17 @@ class Provisioning:
         yield
 
         # send provisioning data phase
+        puts(colored.blue(f'Configuração em 75%.'))
         log.dbg('send provisioning data phase')
-        
-        network_key = b'\xef\xb2\x25\x5e\x64\x22\xd3\x30\x08\x8e\x09\xbb\x01\x5e\xd7\x07'
-        key_index = b'\x05\x67'
         flags = b'\x00'
-        iv_index = b'\x01\x02\x03\x04'
-        unicast_address = b'\x0b\x0c'
 
-        send_provisioning_data_phase_task = scheduler.spawn_task(self.send_provisioning_data_phase_t, 
-                                                                    connection_id=connection_id, network_key=network_key, 
-                                                                    key_index=key_index, flags=flags, iv_index=iv_index, 
-                                                                    unicast_address=unicast_address, 
+        send_provisioning_data_phase_task = scheduler.spawn_task(self.send_provisioning_data_phase_t,
+                                                                    connection_id=connection_id, network_key=net_key,
+                                                                    key_index=key_index, flags=flags, iv_index=iv_index,
+                                                                    unicast_address=unicast_address,
                                                                     confirmation_salt=authentication_phase_task.results[0],
                                                                     random_provisioner=authentication_phase_task.results[1],
-                                                                    random_device=authentication_phase_task.results[3], 
+                                                                    random_device=authentication_phase_task.results[3],
                                                                     ecdh_secret=exchange_keys_phase_task.results[4].to_bytes(32, 'big'))
         self_task.wait_finish(send_provisioning_data_phase_task)
         yield
@@ -489,23 +495,6 @@ class Provisioning:
 
         log.succ('send provisioning data finished')
 
-        # save prov data
-        prov_data = ProvData(prov_public_key_x=exchange_keys_phase_task.results[1].x().to_bytes(32, 'big'), 
-                                prov_public_key_y=exchange_keys_phase_task.results[1].y().to_bytes(32, 'big'),
-                                dev_public_key_x=exchange_keys_phase_task.results[3].x().to_bytes(32, 'big'),
-                                dev_public_key_y=exchange_keys_phase_task.results[3].y().to_bytes(32, 'big'),
-                                prov_priv_key=exchange_keys_phase_task.results[2].to_bytes(32, 'big'),
-                                random_provisioner=authentication_phase_task.results[1],
-                                random_device=authentication_phase_task.results[2],
-                                auth_value=exchange_keys_phase_task.results[5],
-                                invite_pdu=invite_phase_task.results[0].to_bytes(1, 'big'),
-                                capabilities_pdu=invite_phase_task.results[1],
-                                start_pdu=exchange_keys_phase_task.results[0],
-                                network_key=network_key,
-                                key_index=key_index,
-                                flags=flags,
-                                iv_index=iv_index,
-                                unicast_address=unicast_address)
-        prov_data.save(f'../.provdata/node{connection_id}.json')
+        puts(colored.green(f'Configuração em 100%.'))
 
-        log.succ(f'Device {connection_id} provisioned')
+        scheduler.kill()

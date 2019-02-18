@@ -8,6 +8,7 @@ import base64
 import binascii
 
 log = Log('Dongle', LogLevel.Wrn)
+log.disable()
 
 ADV_MTU = 24
 
@@ -78,9 +79,12 @@ class DongleDriver:
         if len(parts) != 3:
             return None
 
-        at_symbol = parts[0][0]
-        if at_symbol != ord(b'@'):
-            log.err(f'Message start with {chr(at_symbol)} instead of @')
+        try:
+            at_symbol = parts[0][0]
+            if at_symbol != ord(b'@'):
+                log.err(f'Message start with {chr(at_symbol)} instead of @')
+                return None
+        except IndexError:
             return None
 
         msg_type = parts[0][1:]

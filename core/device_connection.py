@@ -6,6 +6,7 @@ from core.log import Log, LogLevel
 from core.dongle import DongleDriver
 
 log = Log('DeviceConnection', LogLevel.Succ)
+log.disable()
 
 #region Exceptions
 class ConnectionClose(Exception):

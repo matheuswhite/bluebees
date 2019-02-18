@@ -25,6 +25,7 @@ class CreateNetworkCommand(Element):
             puts(colored.blue('Nome: ') + f'{network_name}')
             puts(colored.blue('Network key: ') + f'{network.key}')
             puts(colored.blue('Network index: ') + f'{network.index}')
+            puts(colored.blue('IV index: ') + f'{network.iv_index}')
 
 
 create_network_page = Page(arguments=['create', 'network'])

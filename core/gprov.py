@@ -13,6 +13,7 @@ from random import randint
 from core.dongle import DongleDriver
 
 log = Log('Gprov', LogLevel.Succ)
+log.disable()
 
 LINK_TIMEOUT = 0x01
 CONNECTION_ALREADY_OPEN = 0x02
@@ -168,7 +169,7 @@ class GenericProvisioner:
 
     def _handle_link_close_message(self, connection_id: int):
         if not self.connections[connection_id].is_alive:
-            raise TaskError(CONNECTION_CLOSE, f'Connection {conn.link_id} closed by device')
+            raise TaskError(CONNECTION_CLOSE, f'Connection {self.connections[connection_id].link_id} closed by device')
 #endregion
 
 #region Publc

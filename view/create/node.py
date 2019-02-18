@@ -44,21 +44,30 @@ class CreateNodeCommand(Element):
         return self.dongle_port
 
     def _provisioning(self, dev_name: str, net_name: str, unicast_address: bytes):
-        prov = self._config_provisioner()
+        try:
+            prov = self._config_provisioner()
+        except SerialException:
+            puts(colored.red(f"O dongle não está na porta {self.dongle_port} ou está sem permissão. Use "
+                             f"'sudo chmod 777 {self.dongle_port}' para dar permissão para o dongle"))
+            return exit_cmd
 
         device_uuid = mesh_manager.devices[dev_name].uuid
         net_key = mesh_manager.networks[net_name].key
-        key_index = CRYPTO.k3(net_key)
+        key_index = mesh_manager.networks[net_name].index
         iv_index = mesh_manager.networks[net_name].iv_index
+
+        connection_id = 0xaabbccdd
+        prov_task = scheduler.spawn_task(prov.provisioning_device_t, connection_id=connection_id,
+                                         device_uuid=device_uuid, net_key=net_key, key_index=key_index,
+                                         iv_index=iv_index, unicast_address=unicast_address)
 
         scheduler.run()
 
-        connection_id = 0xaabbccdd
-        scheduler.spawn_task(prov.provisioning_device_t, connection_id=connection_id, device_uuid=device_uuid,
-                             net_key=net_key, key_index=key_index, iv_index=iv_index, unicast_address=unicast_address)
-
-        while prov.is_alive:
-            pass
+        # while True:
+        if prov_task.has_error():
+            return 'ERROR'
+        else:
+            return 'OK'
 
     def run(self, page):
         node_name = page.element_results[1]
@@ -67,7 +76,16 @@ class CreateNodeCommand(Element):
 
         node = mesh_manager.new_node(node_name, net_name)
 
-        self._provisioning(dev_name, net_name, node.unicast_address)
+        with indent(len(page.quote) + 1, quote=''):
+            ret = self._provisioning(dev_name, net_name, node.unicast_address)
+            if ret == exit_cmd:
+                return exit_cmd
+            elif ret == 'ERROR':
+                puts(colored.red(f'Error to configure {dev_name}'))
+                return exit_cmd
+
+        node.save()
+        mesh_manager.remove_device(dev_name)
 
         with indent(len(page.quote) + 1, quote=page.quote):
             puts(colored.blue('Uma novo nó foi criado'))
