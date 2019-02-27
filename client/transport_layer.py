@@ -4,6 +4,9 @@ from signalslot.signal import Signal
 from typing import List
 from client.crypto import CRYPTO
 from model.mesh_manager import mesh_manager
+from core.scheduling import Task
+from time import time
+from model.network import Network
 
 
 class TransportPDUInfo:
@@ -21,6 +24,9 @@ class TransportPDUInfo:
         self.IN_seq: bytes = None
 
 
+# TODO Check if seq number is incresed after each send message
+# TODO Drop any message that contains seq number invalid
+# TODO Check byte order of this layer (big or little)
 class UpperTransportLayer:
 
     def __init__(self, network_layer: NetworkLayer, default_ttl=3):
@@ -30,7 +36,16 @@ class UpperTransportLayer:
         self.new_message_signal = Signal(args=['transport_pdu_info', 'pdu'])
         self.seq = 0
         self.ttl = default_ttl
+        self.ack_response_time = 5 # seconds
         self.application_lookup_table = {}
+
+        self.ack_info = None
+        self.ack_start_time = 0
+        self.ack_elapsed_time = 0
+
+        self.giveup_timeout = 0
+        self.giveup_elapsed_time = 0
+        self.giveup_start_time = 0
 
         self.segments_recv = {}
         self.last_segments_sent = {}
@@ -70,7 +85,7 @@ class UpperTransportLayer:
         return transport_pdu[4:]
 
     @staticmethod
-    def _check_ack(transport_pdu_info: TransportPDUInfo):
+    def _check_missed_acks(transport_pdu_info: TransportPDUInfo):
         block_ack = transport_pdu_info.IN_block_ack
         for x in range(transport_pdu_info.IN_seg_n + 1):
             ack_bit = block_ack & 0x01
@@ -80,7 +95,7 @@ class UpperTransportLayer:
                 return False
         return True
 
-    def _update_segments(self, transport_pdu_info: TransportPDUInfo, segment: bytes) -> bool:
+    def _add_segments(self, transport_pdu_info: TransportPDUInfo, segment: bytes) -> bool:
         self.segments_recv[transport_pdu_info.IN_seg_o] = segment
         return len(self.segments_recv) >= (transport_pdu_info.IN_seg_n + 1)
 
@@ -95,7 +110,7 @@ class UpperTransportLayer:
         transport_mic = encrypted_pdu[-4:] if transport_pdu_info.IN_szmic == 0 else encrypted_pdu[-8:]
 
         network = mesh_manager.networks[transport_pdu_info.network_name]
-        app_key = self.application_lookup_table[transport_pdu_info.application_name]
+        app_key = mesh_manager.applications[transport_pdu_info.application_name].key
         app_nonce = b'\x01' + (transport_pdu_info.IN_szmic << 7).to_bytes(1, 'big') + transport_pdu_info.IN_seq + \
                     transport_pdu_info.src_addr.byte_value + transport_pdu_info.dst_addr.byte_value + network.iv_index
 
@@ -127,18 +142,40 @@ class UpperTransportLayer:
         for x in range(transport_pdu_info.IN_seg_n + 1):
             ack_bit = block_ack & 0x01
             block_ack = block_ack >> 1
-            if ack_bit == 1:
+            if ack_bit == 0:
                 missed_segments.append(self.last_segments_sent[x])
 
-                network_pdu_info = NetworkPDUInfo(False, self.ttl, transport_pdu_info.IN_seq,
-                                                  transport_pdu_info.src_addr, transport_pdu_info.dst_addr,
-                                                  transport_pdu_info.network_name)
+        network_pdu_info = NetworkPDUInfo(False, self.ttl, transport_pdu_info.IN_seq, transport_pdu_info.src_addr,
+                                          transport_pdu_info.dst_addr, transport_pdu_info.network_name)
         for miss_seg in missed_segments:
             self.network_layer.send_pdu(network_pdu_info, miss_seg)
 
+    def _start_ack_timer(self, transport_pdu_info: TransportPDUInfo):
+        self.ack_info = transport_pdu_info
+        self.ack_elapsed_time = 0
+        self.ack_start_time = time()
+        self.has_pending_ack = True
+
+    def _ack_timer_t(self, self_task: Task):
+        while True:
+            if self.has_pending_ack:
+                self.ack_start_time = time()
+                yield
+                if self.ack_elapsed_time >= self.ack_response_time and self.has_pending_ack:
+                    self.ack_start_time = 0
+                    self.ack_elapsed_time = 0
+                    self.has_pending_ack = False
+                    self._send_ack(self.ack_info)
+                else:
+                    self.ack_elapsed_time += time() - self.ack_start_time
+            else:
+                yield
+
     def _handle_recv_pdu(self, network_pdu_info, pdu, **kwarg):
+        lookup_table_key = pdu[0:1]
+        application_name = self.application_lookup_table[lookup_table_key]
         transport_pdu_info = TransportPDUInfo(network_pdu_info.src_addr, network_pdu_info.dst_addr,
-                                              network_pdu_info.network_name, '')
+                                              network_pdu_info.network_name, application_name)
         transport_pdu_info.IN_seq = network_pdu_info.seq
 
         if network_pdu_info.is_control_message:
@@ -147,7 +184,7 @@ class UpperTransportLayer:
             if seg == 0 and opcode == 0 and obo == 0:
                 transport_pdu_info.IN_seq_zero = self._decode_seq_zero(pdu)
                 transport_pdu_info.IN_block_ack = self._decode_block_ack(pdu)
-                self.segment_is_acked = self._check_ack(transport_pdu_info)
+                self.segment_is_acked = self._check_missed_acks(transport_pdu_info)
                 if not self.segment_is_acked:
                     self._resend_segments(transport_pdu_info)
         else:
@@ -157,14 +194,16 @@ class UpperTransportLayer:
                 transport_pdu_info.IN_seg_o = self._decode_seg_o(pdu)
                 transport_pdu_info.IN_seg_n = self._decode_seg_n(pdu)
                 segment = self._decode_segment(pdu)
-                is_last = self._update_segments(transport_pdu_info, segment)
-                self._send_ack(transport_pdu_info)
+
+                is_last = self._add_segments(transport_pdu_info, segment)
                 if not is_last:
+                    self._start_ack_timer(transport_pdu_info)
                     return
+                else:
+                    self.has_pending_ack = False
+                    self._send_ack(transport_pdu_info)
                 encrypted_pdu = self._assembly_segments()
             else:
-                lookup_table_key = pdu[0]
-                transport_pdu_info.application_name = self.application_lookup_table[lookup_table_key]
                 encrypted_pdu = pdu[1:]
 
             access_pdu, is_valid = self._decrypt_pdu(transport_pdu_info, encrypted_pdu)
@@ -175,67 +214,98 @@ class UpperTransportLayer:
 # Receive Section
 
 # Send Section
-    # TODO
     def _translate_pdu_info(self, transport_pdu_info: TransportPDUInfo) -> NetworkPDUInfo:
-        pass
+        return NetworkPDUInfo(False, self.ttl, self.seq.to_bytes(3, 'big'), transport_pdu_info.src_addr, transport_pdu_info.dst_addr,
+                              transport_pdu_info.network_name)
+
+    """
+    All transport messages, in this first version, will be transport mic size equals to 32-bits
+    """
+    def _encrypt_pdu(self, access_pdu: bytes, transport_pdu_info: TransportPDUInfo) -> (bytes, bytes):
+        network = mesh_manager.networks[transport_pdu_info.network_name]
+        app_key = mesh_manager.applications[transport_pdu_info.application_name].key
+        app_nonce = b'\x01' + (0x00 << 7).to_bytes(1, 'big') + self.seq.to_bytes(3, 'big') + transport_pdu_info.src_addr.byte_value + \
+                    transport_pdu_info.dst_addr.byte_value + network.iv_index
+
+        aes_ccm_result = CRYPTO.aes_ccm(app_key, app_nonce, access_pdu, b'')
+        access_pdu_encrypted = aes_ccm_result[0:-4]
+        transport_mic = aes_ccm_result[-4:]
+        return access_pdu_encrypted, transport_mic
+
+    @staticmethod
+    def _need_segmentation(access_pdu: bytes) -> bool:
+        return (len(access_pdu) + 4) > 15
 
     # TODO
-    def _encrypt_pdu(self, access_pdu: bytes) -> bytes:
+    def _calc_seq_zero(self, iv_index: bytes, seq: int) -> int:
         pass
 
-    # TODO
-    def _need_segmentation(self, access_pdu: bytes) -> bool:
-        pass
-
-    # TODO
-    def _mount_segmented_transport_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes) -> (List[bytes],
-                                                                                                          List[bytes]):
-        transport_pdu_info_segments = []
+    def _mount_segmented_transport_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes,
+                                       network: Network) -> (List[bytes]):
         transport_pdu_segments = []
+        app_key = mesh_manager.applications[transport_pdu_info.application_name].key
+        pdu = access_pdu
 
-        # code
+        afk = 0
+        aid = int.from_bytes(CRYPTO.k4(app_key), 'big')
+        first_byte = int((afk << 6) | (aid & 0x3f)).to_bytes(1, 'big')
 
-        self.seq += 1
-        return transport_pdu_info_segments, transport_pdu_segments
+        szmic = 0
+        seq_zero = self._calc_seq_zero(network.iv_index, self.seq)
+        seg_n = int((len(access_pdu) - 1) / 15)
+        for seg_o in range(seg_n):
+            header = first_byte + int(((szmic & 0x01) << 23) | ((seq_zero & 0x1fff) << 10) | (seg_o & 0x1f) |
+                                      (seg_n & 0x1f)).to_bytes(3, 'big')
+            segment_m = pdu[0:15]
+            transport_pdu_segments.append(header + segment_m)
+            pdu = pdu[15:]
+        transport_pdu_segments.append(pdu)
 
-    # TODO
+        return transport_pdu_segments
+
     def _mount_unsegmented_transport_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes) -> bytes:
-        pass
+        app_key = mesh_manager.applications[transport_pdu_info.application_name].key
 
-    # TODO
-    def _start_timer(self, timeout: int):
-        pass
+        afk = 0
+        aid = int.from_bytes(CRYPTO.k4(app_key), 'big')
 
-    # TODO
-    def _timer_blows_up(self) -> bool:
-        pass
+        first_byte = int((afk << 6) | (aid & 0x3f)).to_bytes(1, 'big')
+
+        return first_byte + access_pdu
+
+    def _start_giveup_timer(self, timeout: int):
+        self.giveup_elapsed_time = 0
+        self.giveup_timeout = timeout
+        self.giveup_start_time = time()
+
+    def _giveup_timer_blows_up(self) -> bool:
+        return self.giveup_elapsed_time >= self.giveup_timeout
+
+    def _update_giveup_timer(self):
+        self.giveup_elapsed_time = time() - self.giveup_start_time
 
     """
     Send method resets the class variables
     """
-    def send_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes, ack_timeout=30):
+    def send_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes, giveup_timeout=30):
         network_pdu_info = self._translate_pdu_info(transport_pdu_info)
 
-        access_pdu_encrypted = self._encrypt_pdu(access_pdu)
+        access_pdu_encrypted, transport_mic = self._encrypt_pdu(access_pdu, transport_pdu_info)
+        final_pdu = access_pdu_encrypted + transport_mic
 
         if self._need_segmentation(access_pdu):
-            transport_pdu_info_segments, transport_pdu_segments = self._mount_segmented_transport_pdu(
-                transport_pdu_info,
-                access_pdu_encrypted
-            )
-            # translate transport_pdu_info into network_pdu_info
+            transport_pdu_segments = self._mount_segmented_transport_pdu(transport_pdu_info, final_pdu)
             for x in range(len(transport_pdu_segments)):
-                self.network_layer.send_pdu(
-                    transport_pdu_info_segments[x],
-                    transport_pdu_segments[x]
-                )
+                self.last_segments_sent[x] = transport_pdu_segments[x]
+                self.network_layer.send_pdu(network_pdu_info, transport_pdu_segments[x])
         else:
-            transport_pdu = self._mount_unsegmented_transport_pdu(transport_pdu_info, access_pdu_encrypted)
+            transport_pdu = self._mount_unsegmented_transport_pdu(transport_pdu_info, final_pdu)
             self.network_layer.send_pdu(network_pdu_info, transport_pdu)
 
-        self._start_timer(ack_timeout)
+        self._start_giveup_timer(giveup_timeout)
 
-        while not self.segment_is_acked and not self._timer_blows_up():
-            pass
+        while not self.segment_is_acked and not self._giveup_timer_blows_up():
+            self._update_giveup_timer()
 
+        self.seq += 1
 # Send Section
