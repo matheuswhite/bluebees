@@ -1,10 +1,10 @@
 from Crypto.Cipher import AES
 from Crypto.Hash import CMAC
-from ecdsa.ecdsa import Public_key, Private_key
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import cmac
-from cryptography.hazmat.primitives.ciphers import algorithms
+from Crypto.Random import get_random_bytes
+# from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+# from cryptography.hazmat.backends import default_backend
+# from cryptography.hazmat.primitives import cmac
+# from cryptography.hazmat.primitives.ciphers import algorithms
 
 
 class Crypto:
@@ -18,14 +18,22 @@ class Crypto:
         return msg[0:6]
 
     def aes_cmac(self, key: bytes, text: bytes):
-        c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
-        c.update(text)
-        return c.finalize()
+        cobj = CMAC.new(key=key, ciphermod=AES)
+        cobj.update(text)
+        return cobj.digest()
+        # c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
+        # c.update(text)
+        # return c.finalize()
 
     def aes_ccm(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
-        aesccm = AESCCM(key, tag_length=8)
-        ct = aesccm.encrypt(nonce, text, adata)
-        return ct[0:13]
+        cypher = AES.new(key=key, mode=AES.MODE_CCM, nonce=nonce, mac_len=8, assoc_len=len(adata))
+        cyphertext, tag = cypher.encrypt_and_digest(text + adata)
+        return cyphertext[0:13]
+
+    def aes_ccm_complete(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
+        cypher = AES.new(key=key, mode=AES.MODE_CCM, nonce=nonce, mac_len=8, assoc_len=len(adata), msg_len=len(text))
+        cyphertext, tag = cypher.encrypt_and_digest(text + adata)
+        return cyphertext, tag
 
     def s1(self, text: bytes):
         return self.aes_cmac(key=b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', text=text)

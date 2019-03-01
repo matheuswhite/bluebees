@@ -165,7 +165,7 @@ class Task:
         self._event = event
         self._status = 'wait_event'
 
-    def wait_timer(self, timeout: None):
+    def wait_timer(self, timeout=None):
         self._timer.timeout = timeout
         self._status = 'wait_timer'
     #endregion

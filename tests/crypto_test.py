@@ -1,14 +1,8 @@
-import os
-import sys
-sys.path.append('/home/matheuswhite/Documentos/bluebees/')
-
 from ecdsa import NIST256p
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import cmac
-from cryptography.hazmat.primitives.ciphers import algorithms
+from client.crypto import CRYPTO
+
 
 def product(priv, pub):
     priv = int.from_bytes(priv, 'big')
@@ -18,34 +12,36 @@ def product(priv, pub):
 
     return (priv_key.secret_multiplier * pub_key.point).x()
 
+
 def aes_ccm(key, nonce, data, adata):
-    aesccm = AESCCM(key, tag_length=8)
-    ct = aesccm.encrypt(nonce, data, adata)
-    return ct[0:25], ct[25:]
+    ct, mic = CRYPTO.aes_ccm_complete(key, nonce, data, adata)
+    return ct, mic
+
 
 def aes_cmac(key: bytes, msg: bytes):
-    c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
-    c.update(msg)
-    return c.finalize()
+    return CRYPTO.aes_cmac(key, msg)
+
 
 def s1(input_: bytes):
-    zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-    return aes_cmac(zero, input_)
+    return CRYPTO.s1(input_)
+
 
 def k1(shared_secret: bytes, salt: bytes, msg: bytes):
-    okm = aes_cmac(salt, shared_secret)
-    return aes_cmac(okm, msg)
+    return CRYPTO.k1(shared_secret, salt, msg)
+
 
 def calc_confirmation_key(confirmation_inputs: bytes, ecdh_secret: bytes):
-    confirmation_salt = s1(confirmation_inputs)
-    confirmation_key = k1(ecdh_secret, confirmation_salt, b'prck')
+    confirmation_salt = CRYPTO.s1(confirmation_inputs)
+    confirmation_key = CRYPTO.k1(ecdh_secret, confirmation_salt, b'prck')
 
     return confirmation_key
 
+
 def calc_confirmation(confirmation_key: bytes, random_provisioner: bytes, auth_value: bytes):
-    confirmation_provisioner = aes_cmac(confirmation_key, random_provisioner + auth_value)
+    confirmation_provisioner = CRYPTO.aes_cmac(confirmation_key, random_provisioner + auth_value)
 
     return confirmation_provisioner
+
 
 def test_crypto():
     # exchange public keys

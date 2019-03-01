@@ -4,15 +4,8 @@ from core.dongle import DongleDriver
 from core.log import Log
 from ecdsa import NIST256p, SigningKey
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES
-from Crypto.Hash import CMAC
-from ecdsa.ecdsa import Public_key, Private_key
+from client.crypto import CRYPTO
 from ecdsa.ellipticcurve import Point
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import cmac
-from cryptography.hazmat.primitives.ciphers import algorithms
-from core.prov_data import ProvData
 from model.mesh_manager import mesh_manager
 from clint.textui import indent, colored, puts
 
@@ -61,26 +54,8 @@ class Provisioning:
         secret = priv_key * pub_key
         return secret.x()
 
-    def _s1(self, input_: bytes):
-        zero = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-        return self._aes_cmac(zero, input_)
-
-    def _k1(self, shared_secret: bytes, salt: bytes, msg: bytes):
-        okm = self._aes_cmac(salt, shared_secret)
-        return self._aes_cmac(okm, msg)
-
     def _gen_random_provisioner(self):
         return get_random_bytes(16)
-
-    def _aes_cmac(self, key: bytes, msg: bytes):
-        c = cmac.CMAC(algorithms.AES(key), backend=default_backend())
-        c.update(msg)
-        return c.finalize()
-
-    def _aes_ccm(self, key, nonce, data, adata):
-        aesccm = AESCCM(key, tag_length=8)
-        ct = aesccm.encrypt(nonce, data, adata)
-        return ct[0:25], ct[25:]
 
     def kill(self):
         self.is_alive = False
@@ -238,12 +213,12 @@ class Provisioning:
         # calc crypto values need
         confirmation_inputs = provisioning_invite + provisioning_capabilities + provisioning_start + public_key_x + \
                                 public_key_y + device_public_key_x + device_public_key_y
-        confirmation_salt = self._s1(confirmation_inputs)
+        confirmation_salt = CRYPTO.s1(confirmation_inputs)
         yield confirmation_salt
-        confirmation_key = self._k1(ecdh_secret, confirmation_salt, b'prck')
+        confirmation_key = CRYPTO.k1(ecdh_secret, confirmation_salt, b'prck')
         random_provisioner = self._gen_random_provisioner()
         yield random_provisioner
-        confirmation_provisioner = self._aes_cmac(confirmation_key, random_provisioner + auth_value)
+        confirmation_provisioner = CRYPTO.aes_cmac(confirmation_key, random_provisioner + auth_value)
 
         # send confirmation provisioner
         confirmation_msg = PROVISIONING_CONFIRMATION
@@ -325,7 +300,7 @@ class Provisioning:
         log.dbg('Received random message from device')
 
         # check info
-        calc_confiramtion_device = self._aes_cmac(confirmation_key, random_device + auth_value)
+        calc_confiramtion_device = CRYPTO.aes_cmac(confirmation_key, random_device + auth_value)
 
         log.dbg(f'calc: {calc_confiramtion_device}, recv: {recv_confirmation_device}')
 
@@ -346,11 +321,12 @@ class Provisioning:
         provisioning_inputs = confirmation_salt + random_provisioner + random_device
         provisioning_data = network_key + key_index + flags + iv_index + unicast_address
         
-        provisioning_salt = self._s1(provisioning_inputs)
-        session_key = self._k1(ecdh_secret, provisioning_salt, b'prsk')
-        session_nonce = self._k1(ecdh_secret, provisioning_salt, b'prsn')[3:]
+        provisioning_salt = CRYPTO.k1(provisioning_inputs)
+        session_key = CRYPTO.k1(ecdh_secret, provisioning_salt, b'prsk')
+        session_nonce = CRYPTO.k1(ecdh_secret, provisioning_salt, b'prsn')[3:]
 
-        encrypted_provisioning_data, provisioning_data_mic = self._aes_ccm(session_key, session_nonce, provisioning_data, b'')
+        encrypted_provisioning_data, provisioning_data_mic = CRYPTO.aes_ccm_complete(session_key, session_nonce,
+                                                                                     provisioning_data, b'')
 
         # send provisioning data
         provisioning_data_msg = PROVISIONING_DATA
