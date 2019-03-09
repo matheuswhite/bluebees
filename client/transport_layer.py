@@ -24,7 +24,9 @@ class TransportPDUInfo:
         self.IN_seq: bytes = None
 
 
-# TODO Check if seq number is incresed after each send message
+# TODO Increase seq number after each send message
+# TODO Save seq number of first segment
+#       - SeqAuth use seq number o first segment
 # TODO Drop any message that contains seq number invalid
 # TODO Check byte order of this layer (big or little)
 class UpperTransportLayer:
@@ -236,7 +238,6 @@ class UpperTransportLayer:
     def _need_segmentation(access_pdu: bytes) -> bool:
         return (len(access_pdu) + 4) > 15
 
-    # TODO
     def _calc_seq_zero(self, iv_index: bytes, seq: int) -> int:
         seq_auth = (int.from_bytes(iv_index, 'big') << 24) | seq
         seq_zero = seq_auth & 0x1fff
