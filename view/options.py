@@ -27,7 +27,7 @@ class Options(Element):
                 puts(colored.red('Por favor, entre com um número inteiro'))
                 return False, -1
 
-    def run(self, page):
+    def run(self, page, options):
         is_valid = False
         val_int = None
         if self.options is None:
@@ -72,7 +72,7 @@ class ConditionalOptions(Element):
                 puts(colored.red('Por favor, entre com um número inteiro'))
                 return False, -1
 
-    def run(self, page):
+    def run(self, page, options):
         is_valid = False
         val_int = None
         if self.options is None:

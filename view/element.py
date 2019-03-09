@@ -5,5 +5,5 @@ class Element:
     def __init__(self):
         self.index = None
 
-    def run(self, page):
+    def run(self, page, options):
         pass

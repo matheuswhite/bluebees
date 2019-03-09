@@ -8,6 +8,7 @@ from core.dongle import DongleDriver
 from serial import Serial
 from serial.serialutil import SerialException
 from core.scheduling import scheduler
+import platform
 from model.device import Device
 from client.crypto import CRYPTO
 
@@ -40,15 +41,16 @@ class CreateNodeCommand(Element):
         return provisioning
 
     def _get_serial_port(self):
-        self.dongle_port = '/dev/ttyACM0'
+        self.dongle_port = 'COM3' if platform.system() == 'Windows' else '/dev/ttyACM0'
         return self.dongle_port
 
     def _provisioning(self, dev_name: str, net_name: str, unicast_address: bytes):
         try:
             prov = self._config_provisioner()
         except SerialException:
-            puts(colored.red(f"O dongle não está na porta {self.dongle_port} ou está sem permissão. Use "
-                             f"'sudo chmod 777 {self.dongle_port}' para dar permissão para o dongle"))
+            permission = '' if platform.system() == 'Windows' else "Use 'sudo chmod 777 {self.dongle_port}' para " \
+                                                                   "dar permissão para o dongle"
+            puts(colored.red(f"O dongle não está na porta {self.dongle_port} ou está sem permissão." + permission))
             return exit_cmd
 
         device_uuid = mesh_manager.devices[dev_name].uuid
@@ -69,7 +71,7 @@ class CreateNodeCommand(Element):
         else:
             return 'OK'
 
-    def run(self, page):
+    def run(self, page, options):
         node_name = page.element_results[1]
         net_name = page.element_results[2]
         dev_name = page.element_results[3]
@@ -95,7 +97,7 @@ class CreateNodeCommand(Element):
             puts(colored.blue('Rede associada ao nó: ') + f'{node.net_name}')
 
 
-create_node_page = Page(arguments=['create', 'node'])
+create_node_page = Page()
 create_node_page += Question(question='Qual o nome do nó que será criado', end_quote=Q_MARK,
                              valid_answer_check=_node_name_check)
 create_node_page += ConditionalOptions(description='Escolha qual das redes abaixo o nó fará parte:',

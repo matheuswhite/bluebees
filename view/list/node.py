@@ -9,7 +9,7 @@ class ListNodeCommand(Element):
     def __init__(self):
         super().__init__()
 
-    def run(self, page):
+    def run(self, page, options):
         nodes = list(mesh_manager.nodes.keys())
         if len(nodes) == 0:
             with indent(len(page.quote) + 1, quote=page.quote):
@@ -22,5 +22,5 @@ class ListNodeCommand(Element):
                     puts(colored.blue(f'{x+1}. {nodes[x]}'))
 
 
-list_node_page = Page(arguments=['list', 'node'])
+list_node_page = Page()
 list_node_page += ListNodeCommand()

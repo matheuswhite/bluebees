@@ -9,7 +9,7 @@ class ListNetworkCommand(Element):
     def __init__(self):
         super().__init__()
 
-    def run(self, page):
+    def run(self, page, options):
         nets = list(mesh_manager.networks.keys())
         if len(nets) == 0:
             with indent(len(page.quote) + 1, quote=page.quote):
@@ -22,5 +22,5 @@ class ListNetworkCommand(Element):
                     puts(colored.blue(f'{x+1}. {nets[x]}'))
 
 
-list_network_page = Page(arguments=['list', 'network'])
+list_network_page = Page()
 list_network_page += ListNetworkCommand()

@@ -7,8 +7,7 @@ exit_cmd = '/exit'
 
 class Page:
 
-    def __init__(self, arguments, quote='>>>'):
-        self.arguments = arguments
+    def __init__(self, quote='>>>'):
         self.quote = quote
         self.element_results = {}
         self.last_result = None
@@ -19,10 +18,10 @@ class Page:
         self.elements.append(other)
         return self
 
-    def run(self):
+    def run(self, options=None):
         x = 0
         while x < len(self.elements):
-            result = self.elements[x].run(self)
+            result = self.elements[x].run(self, options)
             if result == back_cmd and x > 0:
                 x -= 1
             elif result == back_cmd and x == 0:

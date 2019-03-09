@@ -15,7 +15,7 @@ class Question(Element):
         self.end_quote = end_quote
         self.valid_answer_check = valid_answer_check
 
-    def run(self, page):
+    def run(self, page, options):
         is_valid = False
         val = None
         with indent(len(page.quote) + 1, quote=page.quote):

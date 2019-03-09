@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 
 
 # file types
@@ -8,9 +9,11 @@ DEVICE_FILE_TYPE = '.device'
 NODE_FILE_TYPE = '.node'
 APPLICATION_FILE_TYPE = '.application'
 
+# get home folder
+HOME_DIR = os.environ['USERPROFILE'] if platform.system() == 'Windows' else os.path.expanduser("~")
 
 # create bluebees folder, if not exist
-BLUEBEES_DIR_PATH = os.path.expanduser("~") + '/.bluebees/'
+BLUEBEES_DIR_PATH = HOME_DIR + '/.bluebees/'
 if not os.path.exists(BLUEBEES_DIR_PATH):
     os.mkdir(BLUEBEES_DIR_PATH)
 

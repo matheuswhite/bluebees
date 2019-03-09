@@ -9,7 +9,7 @@ class ListDevicesCommand(Element):
     def __init__(self):
         super().__init__()
 
-    def run(self, page):
+    def run(self, page, options):
         devs = list(mesh_manager.devices.keys())
         if len(devs) == 0:
             with indent(len(page.quote) + 1, quote=page.quote):
@@ -23,5 +23,5 @@ class ListDevicesCommand(Element):
                     puts(colored.blue(f'{x+1}. {devs[x]}'))
 
 
-list_device_page = Page(arguments=['list', 'devices'])
+list_device_page = Page()
 list_device_page += ListDevicesCommand()

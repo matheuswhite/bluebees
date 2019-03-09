@@ -15,7 +15,7 @@ class CreateNetworkCommand(Element):
     def __init__(self):
         super().__init__()
 
-    def run(self, page):
+    def run(self, page, options):
         network_name = page.element_results[1]
         network = mesh_manager.new_network(network_name)
 
@@ -28,7 +28,7 @@ class CreateNetworkCommand(Element):
             puts(colored.blue('IV index: ') + f'{network.iv_index}')
 
 
-create_network_page = Page(arguments=['create', 'network'])
+create_network_page = Page()
 create_network_page += Question(question='Qual o nome do rede que será criada', end_quote=Q_MARK,
                                 valid_answer_check=_network_name_check)
 create_network_page += CreateNetworkCommand()

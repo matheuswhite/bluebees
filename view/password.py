@@ -1,6 +1,11 @@
 from clint.textui import indent, colored, puts
 from view.element import Element
-import getch
+import platform
+if platform.system() == 'Windows':
+    import msvcrt
+    getch = msvcrt
+else:
+    import getch
 
 
 class Password(Element):
@@ -30,7 +35,7 @@ class Password(Element):
                 counter += 1
         return buf
 
-    def run(self, page):
+    def run(self, page, options):
         with indent(len(page.quote) + 1, quote=page.quote):
             puts(colored.blue(self.description + ': '), newline=False)
             print('', end='', flush=True)

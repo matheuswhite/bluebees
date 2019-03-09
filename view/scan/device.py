@@ -7,6 +7,7 @@ from core.dongle import DongleDriver
 from serial import Serial
 from serial.serialutil import SerialException
 from model.mesh_manager import mesh_manager
+import platform
 
 
 class ScanDeviceCommand(Element):
@@ -24,16 +25,17 @@ class ScanDeviceCommand(Element):
         return provisioning
 
     def _get_serial_port(self):
-        self.dongle_port = '/dev/ttyACM0'
+        self.dongle_port = 'COM3' if platform.system() == 'Windows' else '/dev/ttyACM0'
         return self.dongle_port
 
-    def run(self, page):
+    def run(self, page, options):
         with indent(len(page.quote) + 1, quote=page.quote):
             try:
                 provisioning = self._config_provisioner()
             except SerialException:
-                puts(colored.red(f"O dongle não está na porta {self.dongle_port} ou está sem permissão. Use "
-                                 f"'sudo chmod 777 {self.dongle_port}' para dar permissão para o dongle"))
+                permission = '' if platform.system() == 'Windows' else "Use 'sudo chmod 777 {self.dongle_port}' para " \
+                                                                       "dar permissão para o dongle"
+                puts(colored.red(f"O dongle não está na porta {self.dongle_port} ou está sem permissão." + permission))
                 return exit_cmd
 
             puts(colored.blue('Procurando por dispositivos...'))
@@ -48,5 +50,5 @@ class ScanDeviceCommand(Element):
                 provisioning.kill()
 
 
-scan_device_page = Page(arguments=['scan', 'device'])
+scan_device_page = Page()
 scan_device_page += ScanDeviceCommand()

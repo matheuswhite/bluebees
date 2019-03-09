@@ -18,38 +18,34 @@ def rebuild_cmd(args: List):
     return cmd[:-1] + "'"
 
 
-def create_main_page(pages: List[Page]):
-    main_page = {}
-    current_dict = main_page
-    last_argument = None
-    last_dict = current_dict
-    for p in pages:
-        for a in p.arguments:
-            last_dict = current_dict
-            if a not in current_dict.keys():
-                current_dict[a] = {}
-            current_dict = current_dict[a]
-            last_argument = a
-        last_dict[last_argument] = p
-        current_dict = main_page
-    return main_page
-
-
 def main():
     args = Args()
 
-    main_page = create_main_page([
-        create_node_page,
-        create_network_page,
-        scan_device_page,
-        list_network_page,
-        list_device_page,
-        list_node_page
-    ])
+    main_page = {
+        'create': {
+            'network': create_network_page,
+            'node': create_node_page
+        },
+        'list': {
+            'device': list_device_page,
+            'network': list_network_page,
+            'node': list_node_page
+        },
+        'scan': {
+            'device': scan_device_page
+        }
+    }
+
+    grouped_args = args.grouped
+    flags = args.flags
+
+    if '-h' in flags or '--help' in flags:
+        print(f'Help {flags}')
+        return
 
     try:
         page = main_page
-        for a in args.all:
+        for a in grouped_args['_'][0:]:
             page = page[a]
     except KeyError:
         puts(colored.red(f'[ERR] The command {rebuild_cmd(args.all)} not exits'))
@@ -59,7 +55,15 @@ def main():
         puts(colored.red(f'[ERR] The command {rebuild_cmd(args.all)} not exits'))
         return
 
-    page.run()
+    options = {}
+
+    if '-t' in flags:
+        options['template_file'] = grouped_args['-t'][0]
+    elif '--template' in flags:
+        options['template_file'] = grouped_args['-t'][0]
+        page.run(template_file=options['template_file'])
+
+    page.run(options=options)
 
 
 if __name__ == '__main__':
