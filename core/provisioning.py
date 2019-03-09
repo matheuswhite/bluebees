@@ -321,7 +321,7 @@ class Provisioning:
         provisioning_inputs = confirmation_salt + random_provisioner + random_device
         provisioning_data = network_key + key_index + flags + iv_index + unicast_address
         
-        provisioning_salt = CRYPTO.k1(provisioning_inputs)
+        provisioning_salt = CRYPTO.s1(provisioning_inputs)
         session_key = CRYPTO.k1(ecdh_secret, provisioning_salt, b'prsk')
         session_nonce = CRYPTO.k1(ecdh_secret, provisioning_salt, b'prsn')[3:]
 
