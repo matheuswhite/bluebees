@@ -238,7 +238,9 @@ class UpperTransportLayer:
 
     # TODO
     def _calc_seq_zero(self, iv_index: bytes, seq: int) -> int:
-        pass
+        seq_auth = (int.from_bytes(iv_index, 'big') << 24) | seq
+        seq_zero = seq_auth & 0x1fff
+        return seq_zero
 
     def _mount_segmented_transport_pdu(self, transport_pdu_info: TransportPDUInfo, access_pdu: bytes,
                                        network: Network) -> (List[bytes]):
