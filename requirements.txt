@@ -4,3 +4,4 @@ termcolor==1.1.0
 pyserial==3.4
 ecdsa==0.13
 signalslot==0.1.1
+PyYAML==5.1

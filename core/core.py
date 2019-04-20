@@ -9,10 +9,13 @@ class Core(Module):
         self._help = 'Commands availables:\nrun\trun the core module'
 
     def digest(self, cmd, flags):
-        if check_flag(('-h', '--help'), flags):
-            print(self.help)
+        if not cmd:
+            if check_flag(('-h', '--help'), flags):
+                print(self.help)
+            else:
+                print(f'Call {cmd} of {self} with flags {flags}')
         else:
-            print(f'Call {cmd} of {self} with flags {flags}')
+            pass
 
 
 core = Core()

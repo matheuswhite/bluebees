@@ -5,6 +5,7 @@ class Module:
     def __init__(self, name):
         self._name = name
         self._help = ''
+        self._cmds = {}
 
     @property
     def name(self):

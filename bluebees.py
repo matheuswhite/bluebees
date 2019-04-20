@@ -2,24 +2,26 @@ from clint.arguments import Args
 from common.module import Module
 from core.core import core
 from common.utils import check_flag
+from common.template import template_helper
 
 
 class MainModule(Module):
 
-    def __init__(self):
+    def __init__(self, module_list):
         super().__init__('$')
-        self._help = '''Please, use this command format:
+        self._module_list = module_list
+        self._help = f'''Please, use this command format:
 <module> <cmd> <flags>
 
 Modules available:
-core'''
+{self.module_list_str()}'''
         self._about = ' ____  _     _    _ ______ ____  ______ ______  _____\n'\
                       '|  _ \| |   | |  | |  ____|  _ \|  ____|  ____|/ ____|\n'\
                       '| |_) | |   | |  | | |__  | |_) | |__  | |__  | (___\n'\
                       '|  _ <| |   | |  | |  __| |  _ <|  __| |  __|  \___ \\\n'\
                       '| |_) | |___| |__| | |____| |_) | |____| |____ ____) |\n'\
                       '|____/|______\____/|______|____/|______|______|_____/\n'\
-                      '\t\t\t\tMade by: Matheus White\n'
+                      '\t\t\t\tMade by: Matheus White'
         self._license = '''MIT License
 
 Copyright (c) 2018 Matheus White
@@ -42,6 +44,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.'''
 
+    def module_list_str(self):
+        m_list = ''
+        for module in self._module_list:
+            m_list += f'{module}\n'
+
+        return m_list[:-1]
+
     def digest(self, cmd, flags):
         if check_flag(('-h', '--help'), flags):
             print(self.help)
@@ -54,9 +63,11 @@ SOFTWARE.'''
 
 
 module_list = {
-    '$': MainModule(),
     core.name: core
 }
+
+main_module = MainModule(module_list)
+module_list['$'] = main_module
 
 if __name__ == "__main__":
     args = Args()
@@ -70,6 +81,7 @@ if __name__ == "__main__":
     else:
         try:
             module_list[module].digest(cmd, flags)
+            template_helper.read('device_template.yaml')
         except KeyError:
             print(f'Module not found')
             print(module_list['$'].help)
