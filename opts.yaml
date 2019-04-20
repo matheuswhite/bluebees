@@ -1,4 +1,9 @@
+node:
+  add:
+    debug: true
 core:
+  test:
+    name: test-\h\h
   run:
     without_network: true
     debug: false

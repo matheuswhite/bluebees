@@ -12,6 +12,10 @@ class FileHelper:
         pass
 
     def read(self, filename):
+        if not self.file_exist(filename):
+            print(f'File {filename} not found')
+            return {}
+
         with open(filename, 'r') as f:
             content = ''.join(f.readlines())
         return yaml.load(content, Loader=Loader)
