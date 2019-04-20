@@ -1,0 +1,7 @@
+core:
+  run:
+    without_network: true
+    debug: false
+    log: true
+    log_name: client-\S
+    id: \c\c\c\d\d

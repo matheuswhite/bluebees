@@ -19,7 +19,16 @@ class Module:
         return f'module {self.name}'
 
     def __getitem__(self, name):
-        pass
+        return self._cmds[name]
 
-    def digest(self, cmd, flags):
+    def digest(self, cmd, flags, flags_values):
+        if not cmd:
+            self._digest_non_cmd(flags, flags_values)
+        else:
+            try:
+                self[cmd].digest(flags, flags_values)
+            except KeyError:
+                print(f'Command {cmd} not found in {self._name}')
+
+    def _digest_non_cmd(self, flags, flags_values):
         pass

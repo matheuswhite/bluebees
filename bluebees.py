@@ -51,7 +51,7 @@ SOFTWARE.'''
 
         return m_list[:-1]
 
-    def digest(self, cmd, flags):
+    def _digest_non_cmd(self, flags, flags_values):
         if check_flag(('-h', '--help'), flags):
             print(self.help)
         elif check_flag(('-a', '--about'), flags):
@@ -75,13 +75,25 @@ if __name__ == "__main__":
     module = args.grouped['_'][0]
     cmd = args.grouped['_'][1]
     flags = args.flags._args
+    flags_values = []
+
+    ''' processing flags values'''
+    flags_grouped = args.grouped
+    for fg_k in flags_grouped:
+        fg_v = flags_grouped[fg_k]
+        if fg_k == '_':
+            continue
+        elif not fg_v:
+            flags_values.append(None)
+        else:
+            flags_values.append(fg_v[0])
 
     if not cmd and not module:
-        module_list['$'].digest(cmd, flags)
+        module_list['$'].digest(cmd, flags, flags_values)
     else:
         try:
-            module_list[module].digest(cmd, flags)
-            template_helper.read('device_template.yaml')
+            module_list[module].digest(cmd, flags, flags_values)
+            # template_helper.read('device_template.yaml')
         except KeyError:
             print(f'Module not found')
             print(module_list['$'].help)

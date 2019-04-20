@@ -7,7 +7,6 @@ import re
 class TemplateHelper:
 
     def __init__(self):
-        self._current_template = {}
         self._random_pattern = r'\\d|\\h|\\c|\\a|\\A|\\t'
         self._sequence_pattern = r'\\s|\\S'
         self._sequences_filename = 'seq.yaml'
@@ -61,9 +60,12 @@ class TemplateHelper:
             self._sequences[pattern] = 0
             return self._change_sequence(field_value)
 
-    def get_field(self, field_name):
-        field_raw_value = self._current_template[field_name]
+    def get_field(self, template, field_name):
+        field_raw_value = template[field_name]
         field_value = field_raw_value
+
+        if type(field_raw_value) != str and type(field_raw_value) != bytes:
+            return field_value
 
         if re.findall(self._random_pattern, field_raw_value):
             field_value = self._change_random(field_raw_value)
@@ -73,30 +75,6 @@ class TemplateHelper:
             raise Exception(f'Symbol unknown')
 
         return field_value
-
-    def _read_device(self):
-        name = self.get_field('name')
-        description = self.get_field('description')
-        address = self.get_field('address')
-        net_name = self.get_field('net_name')
-        print(f'***** Device Template *****')
-        print(f'Name: {name}')
-        print(f'Description: {description}')
-        print(f'Address: {address}')
-        print(f'Network: {net_name}')
-
-    def read(self, filename):
-        template = file_helper.read(filename)
-
-        dev_template = find_key(template, 'device')
-        if dev_template:
-            self._current_template = dev_template
-            self._read_device()
-        else:
-            print(f'Bad format in template {filename}')
-            return
-
-        self._update_file()
 
 
 template_helper = TemplateHelper()
