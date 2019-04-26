@@ -2,12 +2,9 @@ import asyncio
 import zmq.asyncio
 from zmq.asyncio import Context
 import logging
+from common.asyncio_fixup import wakeup
 
 logging.basicConfig(level=logging.INFO)
-
-
-class BrokerDisconnectError(Exception):
-    pass
 
 
 class Client:
@@ -77,7 +74,9 @@ class Client:
     async def spwan_tasks(self, loop):
         self.loop = loop
 
-        await self.connect_to_broker()
+        loop.create_task(wakeup())
 
-        for t in self.all_tasks:
-            loop.create_task(t)
+        await self.connect_to_broker()
+        print('Connected to broker')
+
+        asyncio.gather(*self.all_tasks)

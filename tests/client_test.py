@@ -2,8 +2,7 @@ import sys
 sys.path.append('C:\\Users\\tenor\\OneDrive\\Documentos\\bluebees\\')
 
 import asyncio
-from common.client import Client, BrokerDisconnectError
-from common.asyncio_fixup import wakeup
+from common.client import Client
 from asyncio import CancelledError
 
 
@@ -37,12 +36,14 @@ class TestClient(Client):
 if __name__ == "__main__":
     try:
         loop = asyncio.get_event_loop()
-        client1 = TestClient(topic_pub=f'channel{sys.argv[1]}'.encode('utf-8'),
-                             topic_sub=f'channel{sys.argv[2]}'.encode('utf-8'))
+        arg1 = sys.argv[1] if len(sys.argv) >= 2 else 'A'
+        arg2 = sys.argv[2] if len(sys.argv) >= 3 else 'B'
+        client1 = TestClient(topic_pub=f'channel{arg1}'.encode('utf-8'),
+                             topic_sub=f'channel{arg2}'.encode('utf-8'))
 
         print('Running client tasks...')
-        task_group = asyncio.gather(client1.spwan_tasks(loop), wakeup())
-        loop.run_until_complete(task_group)
+        asyncio.gather(client1.spwan_tasks(loop))
+        loop.run_forever()
     except KeyboardInterrupt:
         print('End of program')
         client1.disconnect()

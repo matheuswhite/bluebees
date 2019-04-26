@@ -2,6 +2,7 @@ import asyncio
 import zmq.asyncio
 from zmq.asyncio import Context
 import logging
+from common.asyncio_fixup import wakeup
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +44,7 @@ class Broker:
         # ! spawn corroutine to receive data from topic_list on client port
         self.loop.create_task(self._subscribe_task(self.subs[client_port],
                                                    client_port))
+        print(f'New client connected using port {client_port}')
 
     async def _subscribe_task(self, sub_socket, port):
         while True:
@@ -74,4 +76,5 @@ class Broker:
         self.pub_sock.send_multipart([b'disconnect', b'broker'])
 
     def tasks(self):
-        return asyncio.gather(self._listen_task(), self._publish_task())
+        return asyncio.gather(self._listen_task(), self._publish_task(),
+                              wakeup())

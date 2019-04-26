@@ -3,7 +3,6 @@ sys.path.append('C:\\Users\\tenor\\OneDrive\\Documentos\\bluebees\\')
 
 import asyncio
 from common.broker import Broker
-from common.asyncio_fixup import wakeup
 
 
 if __name__ == "__main__":
@@ -12,7 +11,7 @@ if __name__ == "__main__":
 
         broker = Broker(loop=loop)
         print('Running broker tasks...')
-        task_group = asyncio.gather(broker.tasks(), wakeup())
+        task_group = asyncio.gather(broker.tasks())
         loop.run_until_complete(task_group)
     except KeyboardInterrupt:
         print('End of program')
