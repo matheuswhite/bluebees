@@ -1,8 +1,11 @@
 from clint.arguments import Args
+from clint.textui import colored
 from common.module import Module
-from core.core import core
+from client.core.core import core
+from client.node.node import node
+from client.network.network import network
+from client.application.application import application
 from common.utils import check_flag
-from common.template import template_helper
 
 
 class MainModule(Module):
@@ -10,11 +13,20 @@ class MainModule(Module):
     def __init__(self, module_list):
         super().__init__('$')
         self._module_list = module_list
-        self._help = f'''Please, use this command format:
-<module> <cmd> <flags>
+        self._help = '''Usage:
+  python bluebees.py [FLAGS]...
+  python bluebees.py <MODULE> [ARGS]...
 
-Modules available:
-{self.module_list_str()}'''
+Flags:
+  -h, --help   \t\tShow the help message
+  -a, --about  \t\tShow the about information
+  -l, --license\t\tShow the licence of this software
+
+Modules:
+  core\t\tThe module that run main features
+  net \t\tThe module about mesh network feature
+  app \t\tThe module about mesh application feature
+  node\t\tThe module about mesh node features'''
         self._about = ' ____  _     _    _ ______ ____  ______ ______  _____\n'\
                       '|  _ \| |   | |  | |  ____|  _ \|  ____|  ____|/ ____|\n'\
                       '| |_) | |   | |  | | |__  | |_) | |__  | |__  | (___\n'\
@@ -59,11 +71,15 @@ SOFTWARE.'''
         elif check_flag(('-l', '--license'), flags):
             print(self._license)
         else:
-            print(f'Call nothing with flags {flags}')
+            print(colored.red(f'Flags {flags} not recognized'))
+            print(self.help)
 
 
 module_list = {
-    core.name: core
+    core.name: core,
+    node.name: node,
+    network.name: network,
+    application.name: application
 }
 
 main_module = MainModule(module_list)
@@ -93,7 +109,6 @@ if __name__ == "__main__":
     else:
         try:
             module_list[module].digest(cmd, flags, flags_values)
-            # template_helper.read('device_template.yaml')
         except KeyError:
-            print(f'Module not found')
+            print(colored.red(f'Module not found'))
             print(module_list['$'].help)

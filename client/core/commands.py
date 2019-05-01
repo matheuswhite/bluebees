@@ -2,7 +2,8 @@ from common.command import Command
 from common.utils import find_key
 from common.template import template_helper
 from common.file import file_helper
-from core.dongle import Dongle
+from client.core.dongle import Dongle
+from clint.textui import colored
 import asyncio
 
 
@@ -10,7 +11,13 @@ class RunCommand(Command):
 
     def __init__(self):
         super().__init__()
-        self._help = 'Execute core service.'
+        self._help = '''Usage:
+  python bluebees.py core run [FLAGS]...
+
+Flags:
+  -h, --help              \tShow the help message
+  -o, --options <filename>\tPass a YAML file with the options. Miss this flags will be load default options.
+                          \tFor more information about the option file see <link>'''
 
     def _parse_options(self, filename):
         template = file_helper.read(filename)
@@ -63,14 +70,15 @@ class RunCommand(Command):
         else:
             opts = self._merge_options(opts)
 
-        try:
-            loop = asyncio.get_event_loop()
-            dongle = Dongle(loop=loop, serial_port=opts['serial_port'],
-                            baudrate=opts['baudrate'], port=opts['port'])
-            task_group = asyncio.gather(dongle.tasks())
-            loop.run_until_complete(task_group)
-        except KeyboardInterrupt:
-            print('End async')
-        finally:
-            task_group.cancel()
-            loop.close()
+        print(colored.green('Running core module...'))
+        # try:
+        #     loop = asyncio.get_event_loop()
+        #     dongle = Dongle(loop=loop, serial_port=opts['serial_port'],
+        #                     baudrate=opts['baudrate'], port=opts['port'])
+        #     task_group = asyncio.gather(dongle.tasks())
+        #     loop.run_until_complete(task_group)
+        # except KeyboardInterrupt:
+        #     print('End async')
+        # finally:
+        #     task_group.cancel()
+        #     loop.close()

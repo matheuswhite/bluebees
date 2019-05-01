@@ -9,7 +9,7 @@ class TemplateHelper:
     def __init__(self):
         self._random_pattern = r'\\d|\\h|\\c|\\a|\\A|\\t'
         self._sequence_pattern = r'\\s|\\S'
-        self._sequences_filename = 'seq.yaml'
+        self._sequences_filename = 'seq.yml'
         self._sequences = file_helper.load(self._sequences_filename, {})
 
     def _update_file(self):
