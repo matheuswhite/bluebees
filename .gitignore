@@ -3,3 +3,4 @@
 *lib/*
 __pycache__/
 tests/.cache/*
+.pytest_cache/
