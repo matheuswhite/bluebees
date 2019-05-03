@@ -1,0 +1,27 @@
+
+Notes:
+  - New command of node module is initialy fake
+  - Attach command of app module is initialy fake
+
+Fix:
+  ☐ Show help message in case of invalid arguments
+  ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
+  ☐ Change PyYAML by ruamel.yaml
+
+Tasks:
+  Core:
+    ☐ Test subprocess open
+    ☐ Test close of subprocess with Keyboard Interrupt
+  Network:
+    ☐ Implement new command
+    ☐ Implement list command
+    ☐ Implement info command
+  App:
+    ☐ Implement new command
+    ☐ Implement attach command
+    ☐ Implement list command
+    ☐ Implement info command
+  Node:
+    ☐ Implement new command
+    ☐ Implement list command
+    ☐ Implement info command
