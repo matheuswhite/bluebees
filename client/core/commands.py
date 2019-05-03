@@ -41,7 +41,7 @@ Flags:
 
         return opts
 
-    # TODO
+    # TODO Implement load default options of RunCommand class
     def _load_default_options(self):
         return {
             'port': 9521,
@@ -49,7 +49,7 @@ Flags:
             'serial_port': 'COM11'
         }
 
-    # TODO
+    # TODO Implement merge options of RunCommand class
     def _merge_options(self, options):
         return options
 
