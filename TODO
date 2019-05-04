@@ -10,9 +10,9 @@ Fix:
 
 Tasks:
   Core:
-    ☐ Test core execution
+    ☐ Test core performance
   Network:
-    ☐ Implement new command
+    ✔ Implement new command @done(19-05-04 18:53)
     ☐ Implement list command
     ☐ Implement info command
   App:
