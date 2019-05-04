@@ -36,7 +36,7 @@ class Dongle(Client):
             b'prov': []
         }
 
-        self.all_tasks += [self._read_from_serial(), self._write_on_serial()]
+        self.all_tasks += [self._read_serial_task(), self._write_serial_task()]
 
     async def _read_serial_task(self):
         while True:

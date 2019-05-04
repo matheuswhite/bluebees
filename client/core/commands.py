@@ -3,8 +3,13 @@ from common.utils import find_key
 from common.template import template_helper
 from common.file import file_helper
 from client.core.dongle import Dongle
+from common.broker import Broker
+from client.data_paths import base_dir, config_dir
 from clint.textui import colored
+from serial import SerialException
 import asyncio
+import sys
+import warnings
 
 
 class RunCommand(Command):
@@ -23,35 +28,77 @@ Flags:
         template = file_helper.read(filename)
         core_opts = find_key(template, 'core')
         if not core_opts:
-            print(colored.yellow('Bad format in {filename}, not found "core" '
-                                 'keyword.\nUsing default options'))
+            print(colored.yellow(f'Bad format in "{filename}", not found "core" '
+                                 f'keyword.'))
             return None
         run_opts = find_key(core_opts, 'run')
         if not run_opts:
-            print(colored.yellow('Bad format in {filename}, not found "run" '
-                                 'keyword.\nUsing default options'))
+            print(colored.yellow(f'Bad format in "{filename}", not found "run" '
+                                 f'keyword.'))
             return None
 
         opts = {}
-        print('***** User Run Options *****')
+        print(colored.cyan('Using user options:'))
         for opt in run_opts.keys():
             opt_value = template_helper.get_field(run_opts, opt)
             opts[opt] = opt_value
-            print(f'{opt}: {opt_value}')
+            print(colored.cyan(f'+ {opt}: {opt_value}'))
 
         return opts
 
-    # TODO Implement load default options of RunCommand class
-    def _load_default_options(self):
-        return {
-            'port': 9521,
-            'baudrate': 115200,
-            'serial_port': 'COM11'
-        }
+    def _load_default_options(self, debug=False) -> dict:
+        default_opts = file_helper.read(base_dir + config_dir +
+                                        'default_options.yml')
+        core_run_opts = find_key(find_key(default_opts, 'core'), 'run')
 
-    # TODO Implement merge options of RunCommand class
-    def _merge_options(self, options):
-        return options
+        if debug:
+            print(colored.yellow('Using default options:'))
+            for k in core_run_opts.keys():
+                print(colored.yellow(f'+ {k}: {core_run_opts[k]}'))
+
+        return core_run_opts
+
+    def _merge_options(self, options: dict) -> dict:
+        core_run_opts = self._load_default_options()
+        opts = options
+        if 'baudrate' not in options.keys():
+            print(colored.yellow(f'Not find "baudrate" value in option file. '
+                                 f'Using defalt value: '
+                                 f'{core_run_opts["baudrate"]}'))
+            opts['baudrate'] = core_run_opts['baudrate']
+        if 'serial_port' not in options.keys():
+            print(colored.yellow(f'Not find "serial_port" value in option '
+                                 f'file. Using defalt value: '
+                                 f'{core_run_opts["serial_port"]}'))
+            opts['serial_port'] = core_run_opts['serial_port']
+
+        return opts
+
+    def _run_algorithm(self, opts: dict):
+        print('Running core features...')
+        try:
+            warnings.simplefilter('ignore')
+
+            loop = asyncio.get_event_loop()
+            broker = Broker(loop=loop)
+            dongle = Dongle(loop=loop, serial_port=opts['serial_port'],
+                            baudrate=opts['baudrate'])
+            task_group = asyncio.gather(*dongle.all_tasks, broker.tasks())
+            loop.run_until_complete(task_group)
+        except KeyboardInterrupt:
+            pass
+            dongle.disconnect()
+            broker.disconnect()
+        except RuntimeError:
+            pass
+        except SerialException:
+            print(colored.red(f'Serial port {opts["serial_port"]} not '
+                              f'available'))
+        finally:
+            for t in asyncio.Task.all_tasks():
+                t.cancel()
+            loop.stop()
+            print('Stop core features')
 
     def digest(self, flags, flags_values):
         opts = None
@@ -70,19 +117,8 @@ Flags:
                 return
 
         if opts is None:
-            opts = self._load_default_options()
+            opts = self._load_default_options(debug=True)
         else:
             opts = self._merge_options(opts)
 
-        print(colored.green('Running core module...'))
-        # try:
-        #     loop = asyncio.get_event_loop()
-        #     dongle = Dongle(loop=loop, serial_port=opts['serial_port'],
-        #                     baudrate=opts['baudrate'], port=opts['port'])
-        #     task_group = asyncio.gather(dongle.tasks())
-        #     loop.run_until_complete(task_group)
-        # except KeyboardInterrupt:
-        #     print('End async')
-        # finally:
-        #     task_group.cancel()
-        #     loop.close()
+        self._run_algorithm(opts)
