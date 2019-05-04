@@ -1,6 +1,8 @@
 import os
 import errno
 import yaml
+from os import listdir
+from os.path import isfile, join
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -20,6 +22,13 @@ class FileHelper:
         with open(filename, 'r') as f:
             content = ''.join(f.readlines())
         return yaml.load(content, Loader=Loader)
+
+    def list_files(self, dirpath):
+        try:
+            onlyfiles = [f for f in listdir(dirpath) if isfile(join(dirpath, f))]
+            return onlyfiles
+        except FileNotFoundError:
+            return []
 
     def dir_exist(self, filename):
         dirname = os.path.dirname(filename)
