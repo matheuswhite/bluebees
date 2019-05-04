@@ -27,14 +27,14 @@ Modules:
   net \t\tThe module about mesh network feature
   app \t\tThe module about mesh application feature
   node\t\tThe module about mesh node features'''
-        self._about = ' ____  _     _    _ ______ ____  ______ ______  _____\n'\
-                      '|  _ \| |   | |  | |  ____|  _ \|  ____|  ____|/ ____|\n'\
-                      '| |_) | |   | |  | | |__  | |_) | |__  | |__  | (___\n'\
-                      '|  _ <| |   | |  | |  __| |  _ <|  __| |  __|  \___ \\\n'\
-                      '| |_) | |___| |__| | |____| |_) | |____| |____ ____) |\n'\
-                      '|____/|______\____/|______|____/|______|______|_____/\n'\
-                      '\t\t\t\tMade by: Matheus White'
-        self._license = '''MIT License
+        self._about = colored.cyan(' ____  _     _    _ ______ ____  ______ ______  _____\n'\
+                                   '|  _ \| |   | |  | |  ____|  _ \|  ____|  ____|/ ____|\n'\
+                                   '| |_) | |   | |  | | |__  | |_) | |__  | |__  | (___\n'\
+                                   '|  _ <| |   | |  | |  __| |  _ <|  __| |  __|  \___ \\\n'\
+                                   '| |_) | |___| |__| | |____| |_) | |____| |____ ____) |\n'\
+                                   '|____/|______\____/|______|____/|______|______|_____/\n'\
+                                   '\t\t\t\tMade by: Matheus White')
+        self._license = colored.green('''MIT License
 
 Copyright (c) 2018 Matheus White
 
@@ -54,7 +54,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.'''
+SOFTWARE.''')
 
     def module_list_str(self):
         m_list = ''
