@@ -19,6 +19,10 @@ Flags:
             if f == '-h' or f == '--help':
                 print(self._help)
                 return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
+                return
 
         print(colored.green('Creating new application...'))
 
@@ -49,6 +53,10 @@ Flags:
                 app = fv
             elif f == '-n' or f == '--node':
                 node = fv
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
+                return
 
         if app and node:
             print(colored.green(f'Attaching application {app} to {node} node'))
@@ -73,6 +81,10 @@ Flags:
         for x in range(len(flags)):
             f = flags[x]
             if f == '-h' or f == '--help':
+                print(self._help)
+                return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
                 print(self._help)
                 return
 
@@ -100,6 +112,10 @@ Flags:
                 return
             if f == '-n' or f == '--name':
                 print(colored.green(f'Info about {fv} application'))
+                return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
                 return
 
         print(colored.red('No application selected. Impossible obtain '

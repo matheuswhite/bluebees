@@ -1,5 +1,6 @@
 from common.module import Module
 from common.utils import check_flag
+from clint.textui import colored
 from client.application.commands import NewCommand, ListCommand, InfoCommand, \
                                         AttachCommand
 
@@ -31,7 +32,9 @@ Commands:
         if check_flag(('-h', '--help'), flags):
             print(self.help)
         else:
-            print(f'Call {self} with flags {flags}')
+            print(colored.red(f'Invalid flags {flags}'))
+            print(self.help)
+            return
 
 
 application = Application()

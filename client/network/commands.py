@@ -19,6 +19,10 @@ Flags:
             if f == '-h' or f == '--help':
                 print(self._help)
                 return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
+                return
 
         print(colored.green('Creating new network...'))
 
@@ -38,6 +42,10 @@ Flags:
         for x in range(len(flags)):
             f = flags[x]
             if f == '-h' or f == '--help':
+                print(self._help)
+                return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
                 print(self._help)
                 return
 
@@ -65,6 +73,10 @@ Flags:
                 return
             if f == '-n' or f == '--name':
                 print(colored.green(f'Info about {fv} network'))
+                return
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
                 return
 
         print(colored.red('No network selected. Impossible obtain info...'))

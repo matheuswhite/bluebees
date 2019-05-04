@@ -23,13 +23,13 @@ Flags:
         template = file_helper.read(filename)
         core_opts = find_key(template, 'core')
         if not core_opts:
-            print('Bad format in {filename}, not found "core" keyword.\nUsing '
-                  'default options')
+            print(colored.yellow('Bad format in {filename}, not found "core" '
+                                 'keyword.\nUsing default options'))
             return None
         run_opts = find_key(core_opts, 'run')
         if not run_opts:
-            print('Bad format in {filename}, not found "run" keyword.\nUsing '
-                  'default options')
+            print(colored.yellow('Bad format in {filename}, not found "run" '
+                                 'keyword.\nUsing default options'))
             return None
 
         opts = {}
@@ -64,6 +64,10 @@ Flags:
                 return
             if f == '-o' or f == '--options':
                 opts = self._parse_options(fv)
+            else:
+                print(colored.red(f'Invalid flag {f}'))
+                print(self._help)
+                return
 
         if opts is None:
             opts = self._load_default_options()

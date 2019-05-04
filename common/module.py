@@ -1,3 +1,4 @@
+from clint.textui import colored
 
 
 class Module:
@@ -28,7 +29,9 @@ class Module:
             try:
                 self[cmd].digest(flags, flags_values)
             except KeyError:
-                print(f'Command {cmd} not found in {self._name}')
+                print(colored.red(f'Command "{cmd}" not found in {self._name}'
+                                  f' module'))
+                print(self._help)
 
     def _digest_non_cmd(self, flags, flags_values):
         pass
