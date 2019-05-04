@@ -10,8 +10,7 @@ Fix:
 
 Tasks:
   Core:
-    ☐ Test subprocess open
-    ☐ Test close of subprocess with Keyboard Interrupt
+    ☐ Test core execution
   Network:
     ☐ Implement new command
     ☐ Implement list command
