@@ -13,6 +13,7 @@ Tasks:
     ☐ Test core performance
   Network:
     ✔ Implement new command @done(19-05-04 18:53)
+    ☐ Add template to new command
     ☐ Implement list command
     ☐ Implement info command
   App:
