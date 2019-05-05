@@ -90,7 +90,7 @@ Flags:
         except ValueError:
             return None
 
-    def _parse_template(self, filename) -> (bytes, bytes):
+    def _parse_template(self, filename) -> (str, bytes):
         template = file_helper.read(filename)
         if not template:
             return None, None
@@ -155,7 +155,7 @@ Flags:
             print(colored.red(f'The network name "{name}" already exist'))
             return
 
-        # key handling
+        # key processing
         if key is None:
             key = self._generate_net_key()
             if key is None:
@@ -223,7 +223,7 @@ Flags:
 
         net_names = self._net_name_list()
         if not net_names:
-            print()
+            print(colored.yellow('No network created'))
             return
 
         print(colored.cyan('Networks created:'))
@@ -236,7 +236,7 @@ class InfoCommand(Command):
     def __init__(self):
         super().__init__()
         self._help = '''Usage:
-  python bluebees.py net info [FLAGS]...
+  python bluebees.py net info <-n|--name> [FLAGS]...
 
 Flags:
   -n, --name\tSpecify the name of network. This flag is mandatory
@@ -274,9 +274,11 @@ Flags:
         if name is None:
             print(colored.red('No network selected. Please specify network '
                               'name'))
+            return
 
         if not self._net_name_exist(name):
             print(colored.red('This network not exist'))
+            return
 
         net_data = NetworkData.load(base_dir + net_dir + name + '.yml')
 
