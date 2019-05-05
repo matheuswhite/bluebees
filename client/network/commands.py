@@ -19,7 +19,7 @@ Flags:
   -t, --template <filename>\tSpecify a template file. This template file can contain the keyworks:
                            \t  * name (The name of the network)
                            \t  * key  (The key of the network)
-                           \tThis template file must contain the "name" keywork.
+                           \tThis template file must contain the "name" keyword.
                            \tIf this flag is active, then the flag "-n|--name" is not mandatory
   -k, --key  <Network key> \tSpecify the key of network. This flag is not mandatory
   -h, --help               \tShow the help message'''
