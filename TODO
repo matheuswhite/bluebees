@@ -9,6 +9,8 @@ Fix:
   ☐ Change PyYAML by ruamel.yaml
 
 Tasks:
+    ☐ Add description for commands, in help
+    ☐ Add description for module, in help
   Template:
     ☐ Add exception handling to 'get_field'
   Core:
@@ -20,10 +22,10 @@ Tasks:
     ✔ Implement info command @started(19-05-05 12:39) @done(19-05-05 12:48) @lasted(9m47s)
     ✔ Check the size of net key in template @done(19-05-05 13:02)
   App:
-    ☐ Implement new command
+    ✔ Implement new command @done(19-05-05 14:33)
     ☐ Implement attach command
-    ☐ Implement list command
-    ☐ Implement info command
+    ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)
+    ✔ Implement info command @started(19-05-05 14:40) @done(19-05-05 14:46) @lasted(6m58s)
   Node:
     ☐ Implement new command
     ☐ Implement list command
