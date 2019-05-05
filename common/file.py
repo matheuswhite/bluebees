@@ -16,7 +16,6 @@ class FileHelper:
 
     def read(self, filename):
         if not self.file_exist(filename):
-            print(f'File {filename} not found')
             return {}
 
         with open(filename, 'r') as f:
