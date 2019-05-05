@@ -68,7 +68,7 @@ Flags:
         for x in range(2**12):
             key_index = randint(0, 2**12)
             if key_index not in net_key_indexes:
-                return key_index.to_bytes(16, 'big')
+                return key_index.to_bytes(2, 'big')
 
         return None
 

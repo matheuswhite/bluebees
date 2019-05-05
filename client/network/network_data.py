@@ -22,4 +22,6 @@ class NetworkData(Serializable):
         self.apps = apps
 
     def __repr__(self):
-        return f'Name: {self.name}\nKey: {self.key}\nApplications: {self.apps}'
+        return f'Name: {self.name}\nKey: {self.key}\n' \
+               f'Key Index: {self.key_index}\nIV Index: {self.iv_index}\n' \
+               f'Applications: {self.apps}'
