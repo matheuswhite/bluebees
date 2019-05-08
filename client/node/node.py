@@ -20,8 +20,8 @@ Commands:
   new   \t\tCreate a new node
   list  \t\tList the nodes created
   info  \t\tGet description about a node
-  send  \t\tSend a message to a node
-  req   \t\tSend a message to a node and wait a request
+  send  \t\tSend a message to node
+  req   \t\tRequest a message to node (Send a message and wait the response).
   config\t\tSet the node configuration'''
         self._cmds = {
             'new': NewCommand(),

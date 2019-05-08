@@ -6,6 +6,7 @@ from common.file import file_helper
 from common.template import template_helper
 from random import randint
 from client.data_paths import base_dir, node_dir, net_dir
+import asyncio
 
 
 class NewCommand(Command):
@@ -78,10 +79,10 @@ Flags:
 
         return None
 
-    def _str2bytes(self, addr: bytes) -> str:
+    def _str2bytes(self, addr: str) -> bytes:
         try:
-            addr_str = bytes.fromhex(addr)
-            return addr_str
+            addr_b = bytes.fromhex(addr)
+            return addr_b
         except ValueError:
             return None
 
@@ -349,13 +350,43 @@ class SendCommand(Command):
     def __init__(self):
         super().__init__()
         self._help = '''Usage:
-  python bluebees.py node send [FLAGS]...
+  python bluebees.py node send <-t|--target> <-o|--opcode> <-p|--parameters> [FLAGS]...
 
 Flags:
-  -h, --help\tShow the help message
-  -n, --name\tThe name of node'''
+  -t, --target    \tSpecify the name of node target. This flag is mandatory
+  -o, --opcode    \tSpecify the opcode of message. This flag is mandatory
+  -p, --parameters\tSpecify the parameters of message. This flag is mandatory
+  -h, --help      \tShow the help message'''
+
+    def _node_name_exist(self, name: str) -> bool:
+        filenames = file_helper.list_files(base_dir + node_dir)
+        if not filenames:
+            return False
+
+        # remove file extension
+        filenames_fmt = []
+        for file in filenames:
+            filenames_fmt.append(file[:-4])
+
+        return name in filenames_fmt
+
+    def _str2bytes(self, data: str) -> bytes:
+        try:
+            data_b = bytes.fromhex(data)
+            return data_b
+        except ValueError:
+            return None
+
+    # ! Fake implementation
+    def _send_message(self, target_node: str, opcode: bytes,
+                      parameters: bytes):
+        print(colored.green(f'Message [{opcode}, {parameters}] was sent to '
+                            f'"{target_node}" node'))
 
     def digest(self, flags, flags_values):
+        target = None
+        opcode = None
+        parameters = None
 
         for x in range(len(flags)):
             f = flags[x]
@@ -363,15 +394,61 @@ Flags:
             if f == '-h' or f == '--help':
                 print(self._help)
                 return
-            if f == '-n' or f == '--name':
-                print(colored.green(f'Info about {fv} node'))
-                return
+            if f == '-t' or f == '--target':
+                target = fv
+            elif f == '-o' or f == '--opcode':
+                opcode = fv
+            elif f == '-p' or f == '--parameters':
+                parameters = fv
             else:
                 print(colored.red(f'Invalid flag {f}'))
                 print(self._help)
                 return
 
-        print(colored.red('No node selected. Impossible obtain info...'))
+        # target processing
+        if target is None:
+            print(colored.red('Target name is required'))
+            return
+
+        if not self._node_name_exist(target):
+            print(colored.red('This node not exist'))
+            return
+
+        # opcode processing
+        if opcode is None:
+            print(colored.red('Opcode is required'))
+            return
+
+        if len(opcode) not in [2, 4, 6]:
+            print(colored.red(f'Invalid opcode length. The length of opcode '
+                              f'must be 1, 2 or 3 bytes. The current length '
+                              f'is {int(len(opcode)/2)}'))
+            return
+
+        opcode = self._str2bytes(opcode)
+        if opcode is None:
+            print(colored.red('Invalid Opcode. Please enter with a '
+                              'string of hexadecimal digits'))
+            return
+
+        # parameters processing
+        if parameters is None:
+            print(colored.red('Parameters is required'))
+            return
+
+        if len(parameters) >= 380*2:
+            print(colored.red(f'Invalid parameters length. The length of '
+                              f'parameters must be less than 380. The '
+                              f'current length is {int(len(parameters)/2)}'))
+            return
+
+        parameters = self._str2bytes(parameters)
+        if parameters is None:
+            print(colored.red('Invalid Parameters. Please enter with a '
+                              'string of hexadecimal digits'))
+            return
+
+        self._send_message(target, opcode, parameters)
 
 
 class ReqCommand(Command):
@@ -379,13 +456,48 @@ class ReqCommand(Command):
     def __init__(self):
         super().__init__()
         self._help = '''Usage:
-  python bluebees.py node req [FLAGS]...
+  python bluebees.py node req <-t|--target> <-o|--opcode> <-p|--parameters> [FLAGS]...
 
 Flags:
-  -h, --help\tShow the help message
-  -n, --name\tThe name of node'''
+  -t, --target    \tSpecify the name of node target. This flag is mandatory
+  -o, --opcode    \tSpecify the opcode of message. This flag is mandatory
+  -p, --parameters\tSpecify the parameters of message. This flag is mandatory
+  -h, --help      \tShow the help message'''
+
+    def _node_name_exist(self, name: str) -> bool:
+        filenames = file_helper.list_files(base_dir + node_dir)
+        if not filenames:
+            return False
+
+        # remove file extension
+        filenames_fmt = []
+        for file in filenames:
+            filenames_fmt.append(file[:-4])
+
+        return name in filenames_fmt
+
+    def _str2bytes(self, data: str) -> bytes:
+        try:
+            data_b = bytes.fromhex(data)
+            return data_b
+        except ValueError:
+            return None
+
+    # ! Fake implementation
+    async def _request_message(self, target_node: str, opcode: bytes,
+                               parameters: bytes):
+        print(colored.green(f'Message [{opcode}, {parameters}] was sent to '
+                            f'"{target_node}" node'))
+        for x in range(3):
+            print(colored.cyan(f'Waiting response...'))
+            await asyncio.sleep(1)
+
+        print(colored.green(f'Response received!'))
 
     def digest(self, flags, flags_values):
+        target = None
+        opcode = None
+        parameters = None
 
         for x in range(len(flags)):
             f = flags[x]
@@ -393,15 +505,63 @@ Flags:
             if f == '-h' or f == '--help':
                 print(self._help)
                 return
-            if f == '-n' or f == '--name':
-                print(colored.green(f'Info about {fv} node'))
-                return
+            if f == '-t' or f == '--target':
+                target = fv
+            elif f == '-o' or f == '--opcode':
+                opcode = fv
+            elif f == '-p' or f == '--parameters':
+                parameters = fv
             else:
                 print(colored.red(f'Invalid flag {f}'))
                 print(self._help)
                 return
 
-        print(colored.red('No node selected. Impossible obtain info...'))
+        # target processing
+        if target is None:
+            print(colored.red('Target name is required'))
+            return
+
+        if not self._node_name_exist(target):
+            print(colored.red('This node not exist'))
+            return
+
+        # opcode processing
+        if opcode is None:
+            print(colored.red('Opcode is required'))
+            return
+
+        if len(opcode) not in [2, 4, 6]:
+            print(colored.red(f'Invalid opcode length. The length of opcode '
+                              f'must be 1, 2 or 3 bytes. The current length '
+                              f'is {int(len(opcode)/2)}'))
+            return
+
+        opcode = self._str2bytes(opcode)
+        if opcode is None:
+            print(colored.red('Invalid Opcode. Please enter with a '
+                              'string of hexadecimal digits'))
+            return
+
+        # parameters processing
+        if parameters is None:
+            print(colored.red('Parameters is required'))
+            return
+
+        if len(parameters) >= 380*2:
+            print(colored.red(f'Invalid parameters length. The length of '
+                              f'parameters must be less than 380. The '
+                              f'current length is {int(len(parameters)/2)}'))
+            return
+
+        parameters = self._str2bytes(parameters)
+        if parameters is None:
+            print(colored.red('Invalid Parameters. Please enter with a '
+                              'string of hexadecimal digits'))
+            return
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self._request_message(target, opcode,
+                                                      parameters))
 
 
 class ConfigCommand(Command):
@@ -409,13 +569,79 @@ class ConfigCommand(Command):
     def __init__(self):
         super().__init__()
         self._help = '''Usage:
-  python bluebees.py node config [FLAGS]...
+  python bluebees.py node config <-n|--name> <-c|--config> [FLAGS]...
 
 Flags:
-  -h, --help\tShow the help message
-  -n, --name\tThe name of node'''
+  -n, --name  \tSpecify the name of node. This flag is mandatory
+  -c, --config\tSpecify the config file. This config file must contain the keywords:
+              \t  * applications (A list of applications to bind to node)
+              \t  * models       (A list of models options)
+              \t    - index       (The index of model in that node)
+              \t    - publish     (The publish address of model)
+              \t    - subscribe   (The subscribe address of model)
+              \t    - application (The application to bind to model)
+              \tThis flag is mandatory
+  -h, --help  \tShow the help message'''
+
+    def _node_name_exist(self, name: str) -> bool:
+        filenames = file_helper.list_files(base_dir + node_dir)
+        if not filenames:
+            return False
+
+        # remove file extension
+        filenames_fmt = []
+        for file in filenames:
+            filenames_fmt.append(file[:-4])
+
+        return name in filenames_fmt
+
+    def _order(self, i: int):
+        if i % 10 == 1:
+            return 'st'
+        elif i % 10 == 2:
+            return 'nd'
+        elif i % 10 == 3:
+            return 'rd'
+        else:
+            return 'th'
+
+    def _parse_config(self, config_file: str) -> dict:
+        cfg = {'applications': [], 'models': []}
+
+        template = file_helper.read(config_file)
+        if not template:
+            return {}
+
+        try:
+            cfg['applications'] = template_helper.get_field(template,
+                                                            'applications')
+        except Exception:
+            cfg['applications'] = []
+
+        try:
+            cfg['models'] = template_helper.get_field(template, 'models')
+        except Exception:
+            cfg['models'] = []
+
+        return cfg
+
+    # ! Fake implementation
+    async def _config_node(self, name: str, config: dict):
+        # TODO: check if application exist
+
+        print(colored.green(f'Configuration sent to "{name}" node'))
+        print(colored.cyan(f'Check configuration in "{name}" node...'))
+
+        total_len = len(config['applications']) + len(config['models'])
+        for x in range(total_len):
+            print(colored.cyan(f'Config {x+1}/{total_len} is OK'))
+            await asyncio.sleep(1)
+
+        print(colored.green(f'Configuration done!'))
 
     def digest(self, flags, flags_values):
+        name = None
+        config = None
 
         for x in range(len(flags)):
             f = flags[x]
@@ -424,11 +650,32 @@ Flags:
                 print(self._help)
                 return
             if f == '-n' or f == '--name':
-                print(colored.green(f'Info about {fv} node'))
-                return
+                name = fv
+            elif f == '-c' or f == '--config':
+                config = fv
             else:
                 print(colored.red(f'Invalid flag {f}'))
                 print(self._help)
                 return
 
-        print(colored.red('No node selected. Impossible obtain info...'))
+        # name processing
+        if name is None:
+            print(colored.red('Node name is required'))
+            return
+
+        if not self._node_name_exist(name):
+            print(colored.red('This node not exist'))
+            return
+
+        # config processing
+        if config is None:
+            print(colored.red('Config file is required'))
+            return
+
+        config = self._parse_config(config)
+        if not config:
+            print(colored.yellow('Nothing to configure. Abort command'))
+            return
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self._config_node(name, config))

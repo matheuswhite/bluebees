@@ -97,10 +97,10 @@ Flags:
 
         return None
 
-    def _str2bytes(self, key: bytes) -> str:
+    def _str2bytes(self, key: str) -> bytes:
         try:
-            key_str = bytes.fromhex(key)
-            return key_str
+            key_b = bytes.fromhex(key)
+            return key_b
         except ValueError:
             return None
 
