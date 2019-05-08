@@ -1,7 +1,8 @@
 from common.module import Module
 from common.utils import check_flag
 from clint.textui import colored
-from client.node.commands import NewCommand, ListCommand, InfoCommand
+from client.node.commands import NewCommand, ListCommand, InfoCommand, \
+                                 SendCommand, ReqCommand, ConfigCommand
 
 
 class Node(Module):
@@ -16,13 +17,19 @@ Flags:
   -h, --help\tShow the help message
 
 Commands:
-  new \t\tCreate a new node
-  list\t\tList the nodes created
-  info\t\tGet description about a node'''
+  new   \t\tCreate a new node
+  list  \t\tList the nodes created
+  info  \t\tGet description about a node
+  send  \t\tSend a message to a node
+  req   \t\tSend a message to a node and wait a request
+  config\t\tSet the node configuration'''
         self._cmds = {
             'new': NewCommand(),
             'list': ListCommand(),
-            'info': InfoCommand()
+            'info': InfoCommand(),
+            'send': SendCommand(),
+            'req': ReqCommand(),
+            'config': ConfigCommand()
         }
 
     def _digest_non_cmd(self, flags, flags_values):

@@ -42,7 +42,7 @@ Flags:
         for opt in run_opts.keys():
             opt_value = template_helper.get_field(run_opts, opt)
             opts[opt] = opt_value
-            print(colored.cyan(f'+ {opt}: {opt_value}'))
+            print(colored.cyan(f'* {opt}: {opt_value}'))
 
         return opts
 
@@ -54,7 +54,7 @@ Flags:
         if debug:
             print(colored.yellow('Using default options:'))
             for k in core_run_opts.keys():
-                print(colored.yellow(f'+ {k}: {core_run_opts[k]}'))
+                print(colored.yellow(f'* {k}: {core_run_opts[k]}'))
 
         return core_run_opts
 

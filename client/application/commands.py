@@ -223,45 +223,6 @@ Flags:
         print(colored.green(app_data))
 
 
-class AttachCommand(Command):
-
-    def __init__(self):
-        super().__init__()
-        self._help = '''Usage:
-  python bluebees.py app attach [FLAGS]...
-
-Flags:
-  -h, --help\tShow the help message
-  -a, --app \tthe application name that will be attach to a node
-  -n, --node\tThe node name that will attached to a application'''
-
-    def digest(self, flags, flags_values):
-        app = None
-        node = None
-
-        for x in range(len(flags)):
-            f = flags[x]
-            fv = flags_values[x]
-            if f == '-h' or f == '--help':
-                print(self._help)
-                return
-            elif f == '-a' or f == '--app':
-                app = fv
-            elif f == '-n' or f == '--node':
-                node = fv
-            else:
-                print(colored.red(f'Invalid flag {f}'))
-                print(self._help)
-                return
-
-        if app and node:
-            print(colored.green(f'Attaching application {app} to {node} node'))
-            return
-
-        print(colored.red('No application or node selected. Interrupting '
-                          'attach...'))
-
-
 class ListCommand(Command):
 
     def __init__(self):

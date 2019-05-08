@@ -1,8 +1,7 @@
 from common.module import Module
 from common.utils import check_flag
 from clint.textui import colored
-from client.application.commands import NewCommand, ListCommand, InfoCommand, \
-                                        AttachCommand
+from client.application.commands import NewCommand, ListCommand, InfoCommand
 
 
 class Application(Module):
@@ -18,12 +17,10 @@ Flags:
 
 Commands:
   new   \tCreate a new application
-  attach\tAttach an application to a node
   list  \tList the applications created
   info  \tGet description about a application'''
         self._cmds = {
             'new': NewCommand(),
-            'attach': AttachCommand(),
             'list': ListCommand(),
             'info': InfoCommand()
         }
