@@ -13,6 +13,7 @@ Tasks:
     ☐ Add description for module, in help
   Template:
     ☐ Add exception handling to 'get_field'
+    ☐ Move the location of 'seq.yml' to '.bluebees' folder
   Core:
     ☐ Test core performance
   Network:
@@ -23,10 +24,12 @@ Tasks:
     ✔ Check the size of net key in template @done(19-05-05 13:02)
   App:
     ✔ Implement new command @done(19-05-05 14:33)
-    ☐ Implement attach command
     ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)
     ✔ Implement info command @started(19-05-05 14:40) @done(19-05-05 14:46) @lasted(6m58s)
   Node:
-    ☐ Implement new command
-    ☐ Implement list command
-    ☐ Implement info command
+    ✔ Implement new command @started(19-05-05 14:58) @done(19-05-07 21:00) @lasted(2d6h2m25s)
+    ✔ Implement list command @done(19-05-07 21:13)
+    ✔ Implement info command @done(19-05-07 21:13)
+    ☐ Implement send command
+    ☐ Implement req command
+    ☐ Implement config command
