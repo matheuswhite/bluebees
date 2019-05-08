@@ -1,7 +1,4 @@
 
-Notes:
-  - New command of node module is initialy fake
-  - Attach command of app module is initialy fake
 
 Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
@@ -9,8 +6,11 @@ Fix:
   ☐ Change PyYAML by ruamel.yaml
 
 Tasks:
+  Enhancement:
     ☐ Add description for commands, in help
     ☐ Add description for module, in help
+    ☐ Add more status message in command execution.
+    ☐ Check possible spurious exceptions
   Template:
     ☐ Add exception handling to 'get_field'
     ☐ Move the location of 'seq.yml' to '.bluebees' folder
@@ -32,6 +32,6 @@ Tasks:
     ✔ Implement info command @done(19-05-07 21:13)
     ☐ Implement provisioning layers
     ☐ Test provisioning
-    ☐ Implement send command
-    ☐ Implement req command
-    ☐ Implement config command
+    ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
+    ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
+    ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
