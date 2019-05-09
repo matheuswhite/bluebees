@@ -24,3 +24,7 @@ def order(i: int):
         return 'rd'
     else:
         return 'th'
+
+
+class FinishAsync(KeyboardInterrupt):
+    pass

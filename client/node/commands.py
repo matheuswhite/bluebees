@@ -4,7 +4,9 @@ from client.node.node_data import NodeData
 from client.network.network_data import NetworkData
 from common.file import file_helper
 from common.template import template_helper
+from common.utils import FinishAsync
 from random import randint
+from client.node.provisioner import Provisioner
 from client.data_paths import base_dir, node_dir, net_dir
 import asyncio
 
@@ -126,14 +128,35 @@ Flags:
 
         return opts
 
-    # ! Fake implementation
-    def _provisioning_device(self, device_uuid: bytes, network: str):
+    def _provisioning_device(self, device_uuid: bytes, network: str,
+                             addr: bytes):
         print(colored.cyan(f'Provisioning device "{device_uuid}" to network '
                            f'"{network}"'))
-        if device_uuid != (bytes(14) + b'\xdd\xdd'):
-            return None
-        else:
-            return bytes(32)
+        success = False
+        net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
+
+        try:
+            loop = asyncio.get_event_loop()
+            prov = Provisioner(loop, device_uuid, net_data.key,
+                               net_data.key_index, net_data.iv_index, addr)
+            asyncio.gather(prov.spwan_tasks(loop))
+            loop.run_forever()
+            success = True
+        except Exception as e:
+            print(f'Unknown error\n{e}')
+        except FinishAsync:
+            prov.disconnect()
+        except KeyboardInterrupt:
+            print(colored.yellow('Interruption by user'))
+            prov.disconnect()
+        except RuntimeError:
+            print('Runtime error')
+        finally:
+            tasks_running = asyncio.Task.all_tasks()
+            for t in tasks_running:
+                t.cancel()
+            loop.stop()
+            return success
 
     def digest(self, flags, flags_values):
         opts = {'name': None, 'net': None, 'uuid': None, 'addr': None}
@@ -233,15 +256,15 @@ Flags:
                 return
 
         # provisioning device
-        ecdh_secret = self._provisioning_device(opts['uuid'], opts['net'])
-        if ecdh_secret is None:
-            print(colored.red(f'The device UUID {opts["uuid"]} is not '
-                              f'available'))
+        success = self._provisioning_device(opts['uuid'], opts['net'],
+                                            opts['addr'])
+        if not success:
+            print(colored.red(f'Error in provisioning'))
             return
 
         node_data = NodeData(name=opts['name'], addr=opts['addr'],
                              network=opts['net'], device_uuid=opts['uuid'],
-                             ecdh_secret=ecdh_secret)
+                             ecdh_secret=bytes(32))
         node_data.save()
 
         print(colored.green('A new node was created.'))
