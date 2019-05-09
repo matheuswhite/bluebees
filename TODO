@@ -7,6 +7,8 @@ Fix:
 
 Tasks:
   Enhancement:
+    ☐ Add 'raise exceptions' instead of 'return None'
+    ☐ Change print for log
     ☐ Add description for commands, in help
     ☐ Add description for module, in help
     ☐ Add more status message in command execution.
