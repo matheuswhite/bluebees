@@ -13,3 +13,14 @@ def find_key(obj_dict: dict, key: str):
             if type(ret) == dict:
                 return ret
     return None
+
+
+def order(i: int):
+    if i % 10 == 1:
+        return 'st'
+    elif i % 10 == 2:
+        return 'nd'
+    elif i % 10 == 3:
+        return 'rd'
+    else:
+        return 'th'
