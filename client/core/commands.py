@@ -83,7 +83,7 @@ Flags:
             broker = Broker(loop=loop)
             dongle = Dongle(loop=loop, serial_port=opts['serial_port'],
                             baudrate=opts['baudrate'])
-            asyncio.gather(dongle.spawn_tasks(loop), broker.tasks())
+            asyncio.gather(dongle.spwan_tasks(loop), broker.tasks())
             loop.run_forever()
         except KeyboardInterrupt:
             pass
