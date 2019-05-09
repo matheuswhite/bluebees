@@ -44,7 +44,7 @@ class Dongle(Client):
 
             dongle_msg = self._translate_serial_message(serial_msg)
 
-            await self.messages_to_send((dongle_msg.msg_type, dongle_msg))
+            await self.messages_to_send.put((dongle_msg.msg_type, dongle_msg))
 
     async def _write_serial_task(self):
         while True:

@@ -595,16 +595,6 @@ Flags:
 
         return name in filenames_fmt
 
-    def _order(self, i: int):
-        if i % 10 == 1:
-            return 'st'
-        elif i % 10 == 2:
-            return 'nd'
-        elif i % 10 == 3:
-            return 'rd'
-        else:
-            return 'th'
-
     def _parse_config(self, config_file: str) -> dict:
         cfg = {'applications': [], 'models': []}
 
