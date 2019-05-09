@@ -30,7 +30,7 @@ Tasks:
     ✔ Implement new command @started(19-05-05 14:58) @done(19-05-07 21:00) @lasted(2d6h2m25s)
     ✔ Implement list command @done(19-05-07 21:13)
     ✔ Implement info command @done(19-05-07 21:13)
-    ☐ Implement provisioning layers
+    ✔ Implement provisioning layers @done(19-05-09 15:15)
     ☐ Test provisioning
     ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
     ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
