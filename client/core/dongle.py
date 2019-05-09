@@ -44,15 +44,20 @@ class Dongle(Client):
 
             dongle_msg = self._translate_serial_message(serial_msg)
 
-            await self.messages_to_send.put((dongle_msg.msg_type, dongle_msg))
+            await self.messages_to_send.put((dongle_msg.msg_type,
+                                             dongle_msg.content))
 
     async def _write_serial_task(self):
         while True:
-            (_, dongle_msg) = await self.messages_received.get()
+            (msg_type, content) = await self.messages_received.get()
+            print(f'Got a message with type {msg_type} and content {content}')
+            dongle_msg = DongleMessage(msg_type, content)
 
             serial_msg = self._translate_dongle_message(dongle_msg)
 
-            await self._write_on_serial(serial_msg)
+            # ! FIX THIS
+            # ! Put this line in other task and work with queues
+            # await self._write_on_serial(serial_msg)
 
     async def _read_from_serial(self):
         line = b''

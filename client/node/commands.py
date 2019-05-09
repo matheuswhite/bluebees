@@ -133,6 +133,7 @@ Flags:
         print(colored.cyan(f'Provisioning device "{device_uuid}" to network '
                            f'"{network}"'))
         success = False
+        keyboard_int = False
         net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
 
         try:
@@ -147,6 +148,7 @@ Flags:
         except FinishAsync:
             prov.disconnect()
         except KeyboardInterrupt:
+            keyboard_int = True
             print(colored.yellow('Interruption by user'))
             prov.disconnect()
         except RuntimeError:
@@ -155,8 +157,15 @@ Flags:
             tasks_running = asyncio.Task.all_tasks()
             for t in tasks_running:
                 t.cancel()
-            loop.stop()
-            return success
+
+        if keyboard_int:
+            print(colored.yellow('Closing link...'))
+            t = asyncio.gather(prov.close_link(b'\x02'))  # fail
+            loop.run_until_complete(t)
+            print(colored.yellow('Link closed'))
+
+        loop.stop()
+        return success
 
     def digest(self, flags, flags_values):
         opts = {'name': None, 'net': None, 'uuid': None, 'addr': None}
