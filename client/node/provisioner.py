@@ -21,7 +21,9 @@ class ProvisioningContext:
     node_public_key: Point
     ecdh_secret: bytes
     random_provisioner: bytes
+    random_device: bytes
     confirmation_key: bytes
+    confirmation_salt: bytes
     auth: bytes
 
     invite_pdu: bytes
@@ -35,15 +37,28 @@ class DeviceInfo:
     uuid: bytes
     attention: int
 
+    netkey: bytes
+    key_index: bytes
+    flags: bytes
+    iv_index: bytes
+    address: bytes
+
 
 class Provisioner(Client):
 
-    def __init__(self, loop, device_uuid, attention_duration=5):
+    def __init__(self, loop, device_uuid: bytes, netkey: bytes,
+                 key_index: bytes, iv_index: bytes, address: bytes,
+                 flags: b'\x00', attention_duration=5):
         super().__init__(sub_topic_list=[b'prov'], pub_topic_list=[b'prov_s'])
 
         self.loop = loop
         self.device_info = DeviceInfo(uuid=device_uuid,
-                                      attention=attention_duration)
+                                      attention=attention_duration,
+                                      netkey=netkey,
+                                      key_index=key_index,
+                                      flags=flags,
+                                      iv_index=iv_index,
+                                      address=address)
         self.prov_ctx = ProvisioningContext(device_link=b'\xaa\xbb\xcc\xdd',
                                             client_tr_number=0x00,
                                             node_tr_number=0x80,
@@ -56,7 +71,9 @@ class Provisioner(Client):
                                             invite_pdu=None,
                                             capabilities_pdu=None,
                                             start_pdu=None,
-                                            node_confirmation=None)
+                                            node_confirmation=None,
+                                            confirmation_salt=None,
+                                            random_device=None)
 
         self.all_tasks += [self._provisioning_device()]
 
@@ -249,9 +266,9 @@ class Provisioner(Client):
         confirmation_inputs += self.prov_ctx.node_public_key.x().to_bytes(32, 'big')
         confirmation_inputs += self.prov_ctx.node_public_key.y().to_bytes(32, 'big')
 
-        confirmation_salt = crypto.s1(text=confirmation_inputs)
+        self.prov_ctx.confirmation_salt = crypto.s1(text=confirmation_inputs)
         self.prov_ctx.confirmation_key = crypto.k1(n=self.prov_ctx.ecdh_secret,
-                                                   salt=confirmation_salt,
+                                                   salt=self.prov_ctx.confirmation_salt,
                                                    p=b'prck')
 
         content = self.prov_ctx.device_link
@@ -276,10 +293,10 @@ class Provisioner(Client):
         return content
 
     def _check_random_pdu(self, content) -> bool:
-        random_device = content[1:]
+        self.prov_ctx.random_device = content[1:]
 
         calc_confirmation = crypto.aes_cmac(key=self.prov_ctx.confirmation_key,
-                                            text=random_device +
+                                            text=self.prov_ctx.random_device +
                                             self.prov_ctx.auth)
 
         return content[0:1] == b'\x06' and len(content[1:]) == 16 and \
@@ -287,12 +304,36 @@ class Provisioner(Client):
 
     # distribuition of provisioning data phase
     def _mount_data_pdu(self) -> bytes:
-        pass
+        prov_input = self.prov_ctx.confirmation_salt + \
+                     self.prov_ctx.random_provisioner + \
+                     self.prov_ctx.random_device
+        prov_data = self.device_info.netkey + self.device_info.key_index + \
+            self.device_info.flags + self.device_info.iv_index + \
+            self.device_info.address
+
+        prov_salt = crypto.s1(text=prov_input)
+        session_key = crypto.k1(n=self.prov_ctx.ecdh_secret, salt=prov_salt,
+                                b'prsk')
+        session_nonce = crypto.k1(n=self.prov_ctx.ecdh_secret, salt=prov_salt,
+                                  b'prsn')[3:]
+
+        encrypted_data, data_mic = crypto.aes_ccm_complete(key=session_key,
+                                                           nonce=session_nonce,
+                                                           text=prov_data,
+                                                           adata=b'')
+
+        content = self.prov_ctx.device_link
+        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
+        content += b'\x07'
+        content += encrypted_data
+        content += data_mic
+
+        return content
 
     def _check_complete_pdu(self, content) -> bool:
-        pass
+        return content[0:1] == b'\x08'
 
-    async def _provisioning_device(self):
+    async def _provisioning_device(self) -> bytes:
         success = False
 
         # link open phase
@@ -408,3 +449,5 @@ class Provisioner(Client):
             print(colored.red('Wait complete PDU fail'))
             await self._close_link()
             return
+
+        return self.prov_ctx.ecdh_secret
