@@ -4,9 +4,12 @@ Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
   ☐ Change PyYAML by ruamel.yaml
+  ☐ Add a task to clear serial messages
 
 Tasks:
   Enhancement:
+    ☐ Add a task in 'core run' to show status
+        This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
     ☐ Change print for log
     ☐ Add description for commands, in help
@@ -33,7 +36,7 @@ Tasks:
     ✔ Implement list command @done(19-05-07 21:13)
     ✔ Implement info command @done(19-05-07 21:13)
     ✔ Implement provisioning layers @done(19-05-09 15:15)
-    ☐ Test provisioning
+    ☐ Test provisioning @started(19-05-10 14:25)
     ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
     ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
     ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
