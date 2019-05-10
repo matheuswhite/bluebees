@@ -93,7 +93,7 @@ Flags:
             return uuid[-16:]
         else:
             zeros = bytes(16 - len(uuid))
-            return zeros + uuid
+            return uuid + zeros
 
     def _parse_template(self, filename) -> dict:
         opts = {'name': None, 'net': None, 'uuid': None, 'addr': None,

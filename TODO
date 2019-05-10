@@ -3,7 +3,7 @@
 Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
-  ☐ Change trailing zeros in 'device_uuid' from front to back
+  ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
   ☐ Change PyYAML by ruamel.yaml
   ☐ Add a task to clear serial messages
 
