@@ -45,7 +45,7 @@ class Dongle(Client):
         while True:
             serial_msg = await self._read_from_serial()
 
-            print(f'Got a message with type {serial_msg.msg_type} and '
+            print(f'[Serial] Got a message with type {serial_msg.msg_type} and '
                   f'content {b64.b64decode(serial_msg.content_b64).hex()}')
 
             dongle_msg = self._translate_serial_message(serial_msg)
@@ -56,7 +56,7 @@ class Dongle(Client):
     async def _transport_message_task(self):
         while True:
             (msg_type, content) = await self.messages_received.get()
-            print(f'Got a message with type {msg_type} and content {content}')
+            print(f'[0MQ] Got a message with type {msg_type} and content {content}')
             dongle_msg = DongleMessage(msg_type, content)
 
             serial_msg = self._translate_dongle_message(dongle_msg)

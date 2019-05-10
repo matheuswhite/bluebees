@@ -133,7 +133,6 @@ Flags:
         print(colored.cyan(f'Provisioning device "{device_uuid}" to network '
                            f'"{network}"'))
         success = False
-        keyboard_int = False
         net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
 
         try:
@@ -142,13 +141,12 @@ Flags:
                                net_data.key_index, net_data.iv_index, addr)
             asyncio.gather(prov.spwan_tasks(loop))
             loop.run_forever()
-            success = True
+            success = prov.prov_ok
         except Exception as e:
             print(f'Unknown error\n{e}')
         except FinishAsync:
             prov.disconnect()
         except KeyboardInterrupt:
-            keyboard_int = True
             print(colored.yellow('Interruption by user'))
             prov.disconnect()
         except RuntimeError:
@@ -157,14 +155,8 @@ Flags:
             tasks_running = asyncio.Task.all_tasks()
             for t in tasks_running:
                 t.cancel()
+            loop.stop()
 
-        if keyboard_int:
-            print(colored.yellow('Closing link...'))
-            t = asyncio.gather(prov.close_link(b'\x02'))  # fail
-            loop.run_until_complete(t)
-            print(colored.yellow('Link closed'))
-
-        loop.stop()
         return success
 
     def digest(self, flags, flags_values):

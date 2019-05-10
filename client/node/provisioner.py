@@ -132,7 +132,7 @@ class Provisioner(Client):
 
         for x in range(3):
             await self.messages_to_send.put((msg_type, content))
-            await asyncio.sleep(1, loop=self.loop)
+            await asyncio.sleep(.3)
 
     # send pdu methods
     def __mount_generic_prov_pdu(self, content: bytes) -> List[bytes]:
@@ -141,17 +141,17 @@ class Provisioner(Client):
         g_pdus = []
 
         # start pdu
-        segn = ((len(content - 1) / self.adv_mtu) << 2).to_bytes(1, 'big')
+        segn = (int((len(content) - 1) / self.adv_mtu) << 2).to_bytes(1, 'big')
         total_length = len(content).to_bytes(2, 'big')
         fcs = crc8(content).to_bytes(1, 'big')
-        data = content[0:self.adv_mtu]
+        data = content[0:self.adv_mtu - 4]
         g_pdus.append(adv_header + segn + total_length + fcs + data)
 
         # contiuation pdu
         for x in segn:
             content = content[self.adv_mtu:]
             index = (((x + 1) << 2) | 0x02).to_bytes(1, 'big')
-            data = content[0:self.adv_mtu]
+            data = content[0:self.adv_mtu - 1]
             g_pdus.append(adv_header + index + data)
 
         return g_pdus
@@ -162,7 +162,7 @@ class Provisioner(Client):
 
             expected_tr_number = self.prov_ctx.client_tr_number.to_bytes(1,
                                                                          'big')
-
+            # print(colored.magenta(f'Ack: {content.hex()}, tr number: {expected_tr_number}'))
             if msg_type == b'prov' and \
                content[0:4] == self.prov_ctx.device_link and \
                content[4:5] == expected_tr_number and content[5:6] == b'\x01':
@@ -416,6 +416,7 @@ class Provisioner(Client):
         return content[0:1] == b'\x08'
 
     async def _provisioning_device(self):
+        self.prov_ok = False
         success = False
 
         # need for broker get the first message
@@ -446,16 +447,16 @@ class Provisioner(Client):
 
         # invitation phase
         success = await self._send_pdu(tries=10, phase_name='invite',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_invite_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_invite_pdu)
         if not success:
             print(colored.red('Send invite PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._wait_pdu(ack_tries=3, phase_name='capabilities',
-                                       timeout=30,
-                                       check_pdu_func=self._check_capabilities_pdu)
+                                            timeout=30,
+                                            check_pdu_func=self._check_capabilities_pdu)
         if not success:
             print(colored.red('Wait capabilities PDU fail'))
             await self.close_link(b'\x01')  # timeout
@@ -463,24 +464,24 @@ class Provisioner(Client):
 
         # exchanging public keys phase
         success = await self._send_pdu(tries=10, phase_name='start',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_start_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_start_pdu)
         if not success:
             print(colored.red('Send start PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._send_pdu(tries=10, phase_name='exchange keys',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_public_key_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_public_key_pdu)
         if not success:
             print(colored.red('Send public key PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._wait_pdu(ack_tries=3, phase_name='exchange keys',
-                                       timeout=30,
-                                       check_pdu_func=self._check_public_key_pdu)
+                                            timeout=30,
+                                            check_pdu_func=self._check_public_key_pdu)
         if not success:
             print(colored.red('Wait public key PDU fail'))
             await self.close_link(b'\x01')  # timeout
@@ -488,32 +489,32 @@ class Provisioner(Client):
 
         # authentication phase
         success = await self._send_pdu(tries=10, phase_name='confirmation',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_confirmation_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_confirmation_pdu)
         if not success:
             print(colored.red('Send confirmation PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._wait_pdu(ack_tries=3, phase_name='confirmation',
-                                       timeout=30,
-                                       check_pdu_func=self._check_confirmation_pdu)
+                                            timeout=30,
+                                            check_pdu_func=self._check_confirmation_pdu)
         if not success:
             print(colored.red('Wait confirmation PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._send_pdu(tries=10, phase_name='random',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_random_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_random_pdu)
         if not success:
             print(colored.red('Send random PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._wait_pdu(ack_tries=3, phase_name='random',
-                                       timeout=30,
-                                       check_pdu_func=self._check_random_pdu)
+                                            timeout=30,
+                                            check_pdu_func=self._check_random_pdu)
         if not success:
             print(colored.red('Wait random PDU fail'))
             await self.close_link(b'\x01')  # timeout
@@ -521,17 +522,19 @@ class Provisioner(Client):
 
         # distribuition of provisioning data phase
         success = await self._send_pdu(tries=10, phase_name='data',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_data_pdu)
+                                            total_timeout=30,
+                                            mount_pdu_func=self._mount_data_pdu)
         if not success:
             print(colored.red('Send data PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
 
         success = await self._wait_pdu(ack_tries=3, phase_name='complete',
-                                       timeout=30,
-                                       check_pdu_func=self._check_complete_pdu)
+                                            timeout=30,
+                                            check_pdu_func=self._check_complete_pdu)
         if not success:
             print(colored.red('Wait complete PDU fail'))
             await self.close_link(b'\x01')  # timeout
             return
+
+        self.prov_ok = True
