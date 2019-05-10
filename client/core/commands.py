@@ -86,7 +86,7 @@ Flags:
             asyncio.gather(dongle.spwan_tasks(loop), broker.tasks())
             loop.run_forever()
         except KeyboardInterrupt:
-            pass
+            dongle.serial.close()
             dongle.disconnect()
             broker.disconnect()
         except RuntimeError:

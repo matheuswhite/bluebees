@@ -29,6 +29,7 @@ class Dongle(Client):
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.serial = Serial(self.loop, self.serial_port, self.baudrate)
+        self.write_serial_queue = asyncio.Queue()
 
         self.caches = {
             b'message': [],
@@ -36,18 +37,23 @@ class Dongle(Client):
             b'prov': []
         }
 
-        self.all_tasks += [self._read_serial_task(), self._write_serial_task()]
+        self.all_tasks += [self._read_serial_task(),
+                           self._transport_message_task(),
+                           self._write_serial_task()]
 
     async def _read_serial_task(self):
         while True:
             serial_msg = await self._read_from_serial()
+
+            print(f'Got a message with type {serial_msg.msg_type} and '
+                  f'content {b64.b64decode(serial_msg.content_b64).hex()}')
 
             dongle_msg = self._translate_serial_message(serial_msg)
 
             await self.messages_to_send.put((dongle_msg.msg_type,
                                              dongle_msg.content))
 
-    async def _write_serial_task(self):
+    async def _transport_message_task(self):
         while True:
             (msg_type, content) = await self.messages_received.get()
             print(f'Got a message with type {msg_type} and content {content}')
@@ -55,9 +61,15 @@ class Dongle(Client):
 
             serial_msg = self._translate_dongle_message(dongle_msg)
 
-            # ! FIX THIS
-            # ! Put this line in other task and work with queues
-            # await self._write_on_serial(serial_msg)
+            await self.write_serial_queue.put(serial_msg)
+
+    async def _write_serial_task(self):
+        while True:
+            serial_msg = await self.write_serial_queue.get()
+            print(f'Send a message with type {serial_msg.msg_type} and '
+                  f'content {serial_msg.content_b64}')
+
+            await self._write_on_serial(serial_msg)
 
     async def _read_from_serial(self):
         line = b''
@@ -65,12 +77,15 @@ class Dongle(Client):
             data = await self.serial.read()
             line += data
             if b'\r\n' in line:
+                # print(f'Line: {line}')
                 if line[0:1] != b'@':
+                    line = b''
                     continue
 
                 parts = line.split(b' ')
 
                 if len(parts) != 3:
+                    line = b''
                     continue
 
                 msg = SerialMessage(msg_type=parts[0][1:], xmit=None,
@@ -79,6 +94,7 @@ class Dongle(Client):
                                     address=parts[2][:-2])
 
                 if msg in self.caches[msg.msg_type]:
+                    line = b''
                     continue
                 self.caches[msg.msg_type].append(msg)
 
@@ -100,15 +116,22 @@ class Dongle(Client):
         return datas
 
     async def _write_on_serial(self, msg: SerialMessage):
-        data = b'@' + msg.msg_type + b' ' + msg.xmit + b' ' + msg.intms + b' '
-        + msg.content_b64 + b'\r\n'
+        data = b'@'
+        data += msg.msg_type
+        data += b' '
+        data += msg.xmit
+        data += b' '
+        data += msg.intms
+        data += b' '
+        data += msg.content_b64
+        data += b'\r\n'
 
         datas = self._split_data(data)
         for d in datas:
             await self.serial.write(d)
             await asyncio.sleep(0.005)
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(1)
 
     def _translate_serial_message(self, msg: SerialMessage) -> DongleMessage:
         dongle_msg = DongleMessage(msg_type=msg.msg_type,
@@ -116,7 +139,7 @@ class Dongle(Client):
         return dongle_msg
 
     def _translate_dongle_message(self, msg: DongleMessage) -> SerialMessage:
-        serial_msg = SerialMessage(msg_type=msg.msg_type, xmit=b'2',
+        serial_msg = SerialMessage(msg_type=msg.msg_type[:-2], xmit=b'2',
                                    intms=b'20',
                                    content_b64=b64.b64encode(msg.content),
                                    address=None)

@@ -1,12 +1,13 @@
 from common.client import Client
 from dataclasses import dataclass
 from clint.textui import colored
-from common.utils import order, FinishAsync
+from common.utils import order, FinishAsync, crc8
 from asyncio import wait_for
 from ecdsa import NIST256p, SigningKey
 from ecdsa.ellipticcurve import Point
 from common.crypto import crypto
 from Crypto.Random import get_random_bytes
+from typing import List
 import asyncio
 
 
@@ -44,12 +45,32 @@ class DeviceInfo:
     address: bytes
 
 
+@dataclass
+class GenericProvContext:
+    segn: int
+    total_length: int
+    fcs: int
+    current_index: int
+    content: bytes
+
+    def reset(self):
+        self.segn = 0
+        self.total_length = 0
+        self.fcs = 0
+        self.current_index = 0
+        self.content = b''
+
+
 class Provisioner(Client):
 
     def __init__(self, loop, device_uuid: bytes, netkey: bytes,
                  key_index: bytes, iv_index: bytes, address: bytes,
                  flags=b'\x00', attention_duration=5):
         super().__init__(sub_topic_list=[b'prov'], pub_topic_list=[b'prov_s'])
+
+        self.adv_mtu = 24
+        self.start_pdu = 0
+        self.cont_pdu = 2
 
         self.loop = loop
         self.device_info = DeviceInfo(uuid=device_uuid,
@@ -75,6 +96,8 @@ class Provisioner(Client):
                                             confirmation_salt=None,
                                             random_device=None,
                                             node_public_key=None)
+        self.g_recv_ctx = GenericProvContext(segn=0, total_length=0, fcs=0,
+                                             current_index=0, content=b'')
 
         self.all_tasks += [self._provisioning_device()]
 
@@ -112,6 +135,27 @@ class Provisioner(Client):
             await asyncio.sleep(1, loop=self.loop)
 
     # send pdu methods
+    def __mount_generic_prov_pdu(self, content: bytes) -> List[bytes]:
+        adv_header = self.prov_ctx.device_link
+        adv_header += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
+        g_pdus = []
+
+        # start pdu
+        segn = ((len(content - 1) / self.adv_mtu) << 2).to_bytes(1, 'big')
+        total_length = len(content).to_bytes(2, 'big')
+        fcs = crc8(content).to_bytes(1, 'big')
+        data = content[0:self.adv_mtu]
+        g_pdus.append(adv_header + segn + total_length + fcs + data)
+
+        # contiuation pdu
+        for x in segn:
+            content = content[self.adv_mtu:]
+            index = (((x + 1) << 2) | 0x02).to_bytes(1, 'big')
+            data = content[0:self.adv_mtu]
+            g_pdus.append(adv_header + index + data)
+
+        return g_pdus
+
     async def __wait_ack(self):
         while True:
             (msg_type, content) = await self.messages_received.get()
@@ -126,27 +170,84 @@ class Provisioner(Client):
 
     async def _send_pdu(self, tries: int, phase_name: str, total_timeout: int,
                         mount_pdu_func) -> bool:
-        timeout = int(tries / total_timeout)
+        timeout = int(total_timeout / tries)
         for try_ in range(tries):
             print(colored.cyan(f'Send {phase_name} PDU'))
             content = mount_pdu_func()
 
-            await self.messages_to_send.put((b'prov_s', content))
+            generic_prov_pdus = self.__mount_generic_prov_pdu(content)
+
+            for pdu in generic_prov_pdus:
+                await self.messages_to_send.put((b'prov_s', pdu))
 
             try:
                 print(colored.cyan('Waiting ack...'))
-                await wait_for(self.__wait_ack(), timeout)
+                await wait_for(self.__wait_ack(), timeout=timeout)
 
                 print(colored.green(f'Send {phase_name} PDU successful'))
                 self.prov_ctx.client_tr_number += 1
                 return True
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 print(colored.yellow(f'{try_ + 1}{order(try_ + 1)} '
                                      f'{phase_name} PDU fail'))
 
         return False
 
     # wait pdu methods
+    def __remount_recv_pdu(self, content) -> bytes:
+        node_tr_number = self.prov_ctx.node_tr_number.to_bytes(1, 'big')
+        expected_adv_header = self.prov_ctx.device_link + node_tr_number
+
+        if content[0:5] != expected_adv_header:
+            return None
+
+        content = content[5:]
+
+        pdu_type = content[0] & 0x03
+        if pdu_type == self.start_pdu:
+            self.g_recv_ctx.reset()
+            self.g_recv_ctx.segn = (content[0] & 0xfc) >> 2
+            self.g_recv_ctx.total_length = int.from_bytes(content[1:3], 'big')
+            self.g_recv_ctx.fcs = content[3]
+            self.g_recv_ctx.current_index = 1
+            self.g_recv_ctx.content = content[4:self.adv_mtu + 4]
+
+            if self.g_recv_ctx.segn == 0:
+                calc_fcs = crc8(self.g_recv_ctx.content)
+                total_len = len(self.g_recv_ctx.content)
+                if total_len != self.g_recv_ctx.total_length:
+                    self.g_recv_ctx.reset()
+                    print(colored.red('Wrong total len'))
+                elif calc_fcs != self.g_recv_ctx.fcs:
+                    self.g_recv_ctx.reset()
+                    print(colored.red('Wrong FCS'))
+                else:
+                    pdu = self.g_recv_ctx.content
+                    self.g_recv_ctx.reset()
+                    return pdu
+        elif pdu_type == self.cont_pdu:
+            index = (content[0] & 0xfc) >> 2
+            if index == self.g_recv_ctx.current_index:
+                if index != self.g_recv_ctx.segn:
+                    self.g_recv_ctx.current_index += 1
+                    self.g_recv_ctx.content += content[1:self.adv_mtu + 1]
+                else:
+                    self.g_recv_ctx.content += content[1: self.adv_mtu + 1]
+                    calc_fcs = crc8(self.g_recv_ctx.content)
+                    total_len = len(self.g_recv_ctx.content)
+                    if total_len != self.g_recv_ctx.total_length:
+                        self.g_recv_ctx.reset()
+                        print(colored.red('Wrong total len'))
+                    elif calc_fcs != self.g_recv_ctx.fcs:
+                        self.g_recv_ctx.reset()
+                        print(colored.red('Wrong FCS'))
+                    else:
+                        pdu = self.g_recv_ctx.content
+                        self.g_recv_ctx.reset()
+                        return pdu
+
+        return None
+
     async def __send_ack(self):
         content = self.prov_ctx.device_link
         content += self.prov_ctx.node_tr_number.to_bytes(1, 'big')
@@ -158,13 +259,12 @@ class Provisioner(Client):
         while True:
             (msg_type, content) = await self.messages_received.get()
 
-            expected_tr_number = self.prov_ctx.node_tr_number.to_bytes(1,
-                                                                       'big')
+            if msg_type != b'prov':
+                continue
 
-            if msg_type == b'prov' and \
-               content[0:4] == self.prov_ctx.device_link and \
-               content[4:5] == expected_tr_number and \
-               check_pdu_func(content[5:]):
+            pdu = self.__remount_recv_pdu(content)
+
+            if pdu and check_pdu_func(pdu):
                 return
 
     async def _wait_pdu(self, ack_tries: int, phase_name: str, timeout: int,
@@ -185,9 +285,7 @@ class Provisioner(Client):
 
     # invite phase
     def _mount_invite_pdu(self) -> bytes:
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x00'
+        content = b'\x00'
         content += self.device_info.attention.to_bytes(1, 'big')
 
         self.prov_ctx.invite_pdu = content[6:]
@@ -211,9 +309,7 @@ class Provisioner(Client):
 
     # exchanging public key phase
     def _mount_start_pdu(self) -> bytes:
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x02'
+        content = b'\x02'
         content += b'\x00\x00\x00\x00\x00'
 
         self.prov_ctx.start_pdu = content[6:]
@@ -228,9 +324,7 @@ class Provisioner(Client):
         public_key_x = self.prov_ctx.public_key.x().to_bytes(32, 'big')
         public_key_y = self.prov_ctx.public_key.y().to_bytes(32, 'big')
 
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x03'
+        content = b'\x03'
         content += public_key_x
         content += public_key_y
 
@@ -264,11 +358,10 @@ class Provisioner(Client):
                                                    salt=self.prov_ctx.confirmation_salt,
                                                    p=b'prck')
 
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x05'
-        content += crypto.aes_cmac(key=confirmation_key,
-                                   text=random_provisioner + auth_value)
+        content = b'\x05'
+        content += crypto.aes_cmac(key=self.prov_ctx.confirmation_key,
+                                   text=self.prov_ctx.random_provisioner +
+                                   self.prov_ctx.auth_value)
 
         return content
 
@@ -278,9 +371,7 @@ class Provisioner(Client):
         return content[0:1] == b'\x05' and len(content[1:]) == 16
 
     def _mount_random_pdu(self) -> bytes:
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x06'
+        content = b'\x06'
         content += self.prov_ctx.random_provisioner
 
         return content
@@ -315,9 +406,7 @@ class Provisioner(Client):
                                                            text=prov_data,
                                                            adata=b'')
 
-        content = self.prov_ctx.device_link
-        content += self.prov_ctx.client_tr_number.to_bytes(1, 'big')
-        content += b'\x07'
+        content = b'\x07'
         content += encrypted_data
         content += data_mic
 
@@ -342,6 +431,7 @@ class Provisioner(Client):
                 print(colored.cyan(f'Waiting link ack...'))
                 await wait_for(self._wait_link_ack(), timeout=3)
 
+                # self.prov_ctx.client_tr_number += 1
                 print(colored.green('Link open successfull'))
                 success = True
                 break
