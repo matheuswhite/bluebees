@@ -4,24 +4,22 @@ Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
   ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
+  ☐ Send a close link on keyboard interrupt
   ☐ Change PyYAML by ruamel.yaml
   ☐ Add a task to clear serial messages
 
 Tasks:
   Enhancement:
+    ☐ Change print for log
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
-    ☐ Change print for log
-    ☐ Add description for commands, in help
-    ☐ Add description for module, in help
-    ☐ Add more status message in command execution.
     ☐ Check possible spurious exceptions
   Template:
     ☐ Add exception handling to 'get_field'
     ☐ Move the location of 'seq.yml' to '.bluebees' folder
   Core:
-    ☐ Test core performance
+    ✔ Test core performance @done(19-05-11 18:23)
   Network:
     ✔ Implement new command @done(19-05-04 18:53)
     ✔ Add template to new command @started(19-05-05 12:19) @done(19-05-05 12:35) @lasted(16m17s)
@@ -37,7 +35,7 @@ Tasks:
     ✔ Implement list command @done(19-05-07 21:13)
     ✔ Implement info command @done(19-05-07 21:13)
     ✔ Implement provisioning layers @done(19-05-09 15:15)
-    ☐ Test provisioning @started(19-05-10 14:25)
+    ✔ Test provisioning @started(19-05-10 14:25) @done(19-05-11 18:23) @lasted(1d3h58m24s)
     ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
     ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
     ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
