@@ -10,7 +10,7 @@ Fix:
 
 Tasks:
   Enhancement:
-    ☐ Change print for log
+    ☐ Create a logging system
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
