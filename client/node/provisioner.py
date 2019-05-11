@@ -1,7 +1,7 @@
 from common.client import Client
 from dataclasses import dataclass
 from clint.textui import colored
-from common.utils import order, FinishAsync, crc8
+from common.utils import order, crc8
 from asyncio import wait_for
 from ecdsa import NIST256p, SigningKey
 from ecdsa.ellipticcurve import Point
@@ -9,6 +9,18 @@ from common.crypto import crypto
 from Crypto.Random import get_random_bytes
 from typing import List
 import asyncio
+
+
+class LinkOpenError(KeyboardInterrupt):
+    pass
+
+
+class ProvisioningSuccess(KeyboardInterrupt):
+    pass
+
+
+class ProvisioningError(KeyboardInterrupt):
+    pass
 
 
 @dataclass
@@ -25,7 +37,7 @@ class ProvisioningContext:
     random_device: bytes
     confirmation_key: bytes
     confirmation_salt: bytes
-    auth: bytes
+    auth_value: bytes
 
     invite_pdu: bytes
     capabilities_pdu: bytes
@@ -88,7 +100,7 @@ class Provisioner(Client):
                                             ecdh_secret=None,
                                             random_provisioner=None,
                                             confirmation_key=None,
-                                            auth=None,
+                                            auth_value=None,
                                             invite_pdu=None,
                                             capabilities_pdu=None,
                                             start_pdu=None,
@@ -98,6 +110,13 @@ class Provisioner(Client):
                                             node_public_key=None)
         self.g_recv_ctx = GenericProvContext(segn=0, total_length=0, fcs=0,
                                              current_index=0, content=b'')
+
+        sk = SigningKey.generate(curve=NIST256p)
+        vk = sk.get_verifying_key()
+        self.prov_ctx.private_key = sk.privkey.secret_multiplier
+        self.prov_ctx.public_key = vk.pubkey.point
+
+        self.prov_ctx.random_provisioner = get_random_bytes(16)
 
         self.all_tasks += [self._provisioning_device()]
 
@@ -141,18 +160,20 @@ class Provisioner(Client):
         g_pdus = []
 
         # start pdu
-        segn = (int((len(content) - 1) / self.adv_mtu) << 2).to_bytes(1, 'big')
+        last_index = int((len(content) - 1) / self.adv_mtu)
+        segn = (last_index << 2).to_bytes(1, 'big')
         total_length = len(content).to_bytes(2, 'big')
         fcs = crc8(content).to_bytes(1, 'big')
         data = content[0:self.adv_mtu - 4]
         g_pdus.append(adv_header + segn + total_length + fcs + data)
 
         # contiuation pdu
-        for x in segn:
-            content = content[self.adv_mtu:]
+        content = content[self.adv_mtu - 4:]
+        for x in range(last_index):
             index = (((x + 1) << 2) | 0x02).to_bytes(1, 'big')
             data = content[0:self.adv_mtu - 1]
             g_pdus.append(adv_header + index + data)
+            content = content[self.adv_mtu - 1:]
 
         return g_pdus
 
@@ -162,7 +183,6 @@ class Provisioner(Client):
 
             expected_tr_number = self.prov_ctx.client_tr_number.to_bytes(1,
                                                                          'big')
-            # print(colored.magenta(f'Ack: {content.hex()}, tr number: {expected_tr_number}'))
             if msg_type == b'prov' and \
                content[0:4] == self.prov_ctx.device_link and \
                content[4:5] == expected_tr_number and content[5:6] == b'\x01':
@@ -210,7 +230,7 @@ class Provisioner(Client):
             self.g_recv_ctx.total_length = int.from_bytes(content[1:3], 'big')
             self.g_recv_ctx.fcs = content[3]
             self.g_recv_ctx.current_index = 1
-            self.g_recv_ctx.content = content[4:self.adv_mtu + 4]
+            self.g_recv_ctx.content = content[4:self.adv_mtu]
 
             if self.g_recv_ctx.segn == 0:
                 calc_fcs = crc8(self.g_recv_ctx.content)
@@ -230,9 +250,9 @@ class Provisioner(Client):
             if index == self.g_recv_ctx.current_index:
                 if index != self.g_recv_ctx.segn:
                     self.g_recv_ctx.current_index += 1
-                    self.g_recv_ctx.content += content[1:self.adv_mtu + 1]
+                    self.g_recv_ctx.content += content[1:self.adv_mtu]
                 else:
-                    self.g_recv_ctx.content += content[1: self.adv_mtu + 1]
+                    self.g_recv_ctx.content += content[1: self.adv_mtu]
                     calc_fcs = crc8(self.g_recv_ctx.content)
                     total_len = len(self.g_recv_ctx.content)
                     if total_len != self.g_recv_ctx.total_length:
@@ -276,7 +296,7 @@ class Provisioner(Client):
             for try_ in range(ack_tries):
                 print(f'Send {try_ + 1}{order(try_ + 1)} ack pdu')
                 await self.__send_ack()
-                await asyncio.sleep(1)
+                await asyncio.sleep(.3)
 
             self.prov_ctx.node_tr_number += 1
             return True
@@ -288,7 +308,7 @@ class Provisioner(Client):
         content = b'\x00'
         content += self.device_info.attention.to_bytes(1, 'big')
 
-        self.prov_ctx.invite_pdu = content[6:]
+        self.prov_ctx.invite_pdu = self.device_info.attention.to_bytes(1, 'big')
 
         return content
 
@@ -312,21 +332,20 @@ class Provisioner(Client):
         content = b'\x02'
         content += b'\x00\x00\x00\x00\x00'
 
-        self.prov_ctx.start_pdu = content[6:]
+        self.prov_ctx.start_pdu = b'\x00\x00\x00\x00\x00'
 
         return content
 
     def _mount_public_key_pdu(self) -> bytes:
-        sk = SigningKey.generate(curve=NIST256p)
-        vk = sk.get_verifying_key()
-        self.prov_ctx.private_key = sk.privkey.secret_multiplier
-        self.prov_ctx.public_key = vk.pubkey.point
         public_key_x = self.prov_ctx.public_key.x().to_bytes(32, 'big')
         public_key_y = self.prov_ctx.public_key.y().to_bytes(32, 'big')
 
         content = b'\x03'
         content += public_key_x
         content += public_key_y
+
+        print(colored.magenta(f'Pub key x {public_key_x.hex()}'))
+        print(colored.magenta(f'Pub key y {public_key_y.hex()}'))
 
         return content
 
@@ -335,15 +354,13 @@ class Provisioner(Client):
                                               x=int.from_bytes(content[1:33], 'big'),
                                               y=int.from_bytes(content[33:65], 'big'))
 
-        self.prov_ctx.ecdh_secret = (self.prov_ctx.private_key * self.prov_ctx.node_public_key).x()
+        self.prov_ctx.ecdh_secret = (self.prov_ctx.private_key * self.prov_ctx.node_public_key).x().to_bytes(32, 'big')
 
         return content[0:1] == b'\x03' and len(content[1:]) == 64
 
     # authentication phase
     def _mount_confirmation_pdu(self) -> bytes:
         self.prov_ctx.auth_value = bytes(16)
-
-        self.prov_ctx.random_provisioner = get_random_bytes(16)
 
         confirmation_inputs = self.prov_ctx.invite_pdu
         confirmation_inputs += self.prov_ctx.capabilities_pdu
@@ -363,6 +380,13 @@ class Provisioner(Client):
                                    text=self.prov_ctx.random_provisioner +
                                    self.prov_ctx.auth_value)
 
+        print(colored.magenta(f'ConfInputs[0]   {confirmation_inputs[0:64].hex()}'))
+        print(colored.magenta(f'ConfInputs[64]  {confirmation_inputs[64:128].hex()}'))
+        print(colored.magenta(f'ConfInputs[128] {confirmation_inputs[128:145].hex()}'))
+        print(colored.magenta(f'confirmation key: {self.prov_ctx.confirmation_key.hex()}'))
+        print(colored.magenta(f'random device: {self.prov_ctx.random_provisioner.hex()}'))
+        print(colored.magenta(f'authvalue: {self.prov_ctx.auth_value.hex()}'))
+
         return content
 
     def _check_confirmation_pdu(self, content) -> bool:
@@ -381,7 +405,7 @@ class Provisioner(Client):
 
         calc_confirmation = crypto.aes_cmac(key=self.prov_ctx.confirmation_key,
                                             text=self.prov_ctx.random_device +
-                                            self.prov_ctx.auth)
+                                            self.prov_ctx.auth_value)
 
         return content[0:1] == b'\x06' and len(content[1:]) == 16 and \
             self.prov_ctx.node_confirmation == calc_confirmation
@@ -391,6 +415,7 @@ class Provisioner(Client):
         prov_input = self.prov_ctx.confirmation_salt + \
                      self.prov_ctx.random_provisioner + \
                      self.prov_ctx.random_device
+
         prov_data = self.device_info.netkey + self.device_info.key_index + \
             self.device_info.flags + self.device_info.iv_index + \
             self.device_info.address
@@ -416,7 +441,6 @@ class Provisioner(Client):
         return content[0:1] == b'\x08'
 
     async def _provisioning_device(self):
-        self.prov_ok = False
         success = False
 
         # need for broker get the first message
@@ -443,7 +467,7 @@ class Provisioner(Client):
 
         if not success:
             print(colored.red('Link open fail'))
-            raise FinishAsync
+            raise LinkOpenError
 
         # invitation phase
         success = await self._send_pdu(tries=10, phase_name='invite',
@@ -452,7 +476,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send invite PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._wait_pdu(ack_tries=3, phase_name='capabilities',
                                             timeout=30,
@@ -460,7 +484,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Wait capabilities PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         # exchanging public keys phase
         success = await self._send_pdu(tries=10, phase_name='start',
@@ -469,7 +493,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send start PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._send_pdu(tries=10, phase_name='exchange keys',
                                             total_timeout=30,
@@ -477,7 +501,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send public key PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._wait_pdu(ack_tries=3, phase_name='exchange keys',
                                             timeout=30,
@@ -485,7 +509,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Wait public key PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         # authentication phase
         success = await self._send_pdu(tries=10, phase_name='confirmation',
@@ -494,7 +518,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send confirmation PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._wait_pdu(ack_tries=3, phase_name='confirmation',
                                             timeout=30,
@@ -502,7 +526,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Wait confirmation PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._send_pdu(tries=10, phase_name='random',
                                             total_timeout=30,
@@ -510,7 +534,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send random PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._wait_pdu(ack_tries=3, phase_name='random',
                                             timeout=30,
@@ -518,7 +542,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Wait random PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         # distribuition of provisioning data phase
         success = await self._send_pdu(tries=10, phase_name='data',
@@ -527,7 +551,7 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Send data PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
         success = await self._wait_pdu(ack_tries=3, phase_name='complete',
                                             timeout=30,
@@ -535,6 +559,6 @@ class Provisioner(Client):
         if not success:
             print(colored.red('Wait complete PDU fail'))
             await self.close_link(b'\x01')  # timeout
-            return
+            raise ProvisioningError
 
-        self.prov_ok = True
+        raise ProvisioningSuccess

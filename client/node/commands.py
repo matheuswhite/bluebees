@@ -6,7 +6,8 @@ from common.file import file_helper
 from common.template import template_helper
 from common.utils import FinishAsync
 from random import randint
-from client.node.provisioner import Provisioner
+from client.node.provisioner import Provisioner, LinkOpenError, \
+                                    ProvisioningSuccess, ProvisioningError
 from client.data_paths import base_dir, node_dir, net_dir
 import asyncio
 
@@ -141,10 +142,14 @@ Flags:
                                net_data.key_index, net_data.iv_index, addr)
             asyncio.gather(prov.spwan_tasks(loop))
             loop.run_forever()
-            success = prov.prov_ok
         except Exception as e:
             print(f'Unknown error\n{e}')
-        except FinishAsync:
+        except LinkOpenError:
+            prov.disconnect()
+        except ProvisioningError:
+            prov.disconnect()
+        except ProvisioningSuccess:
+            success = True
             prov.disconnect()
         except KeyboardInterrupt:
             print(colored.yellow('Interruption by user'))

@@ -182,7 +182,7 @@ Flags:
 
         net_data = NetworkData(name=name, key=key,
                                key_index=key_index,
-                               iv_index=0x0000_0000)
+                               iv_index=bytes(4))
         net_data.save()
 
         print(colored.green('A new network was created.'))
