@@ -5,12 +5,13 @@ Fix:
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
   ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
   ☐ Send a close link on keyboard interrupt
-  ☐ Change PyYAML by ruamel.yaml
   ☐ Add a task to clear serial messages
+  ☐ Change PyYAML by ruamel.yaml
 
 Tasks:
   Enhancement:
-    ☐ Create a logging system
+    ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
+    ☐ Change print for logger @started(19-05-12 17:26)
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
