@@ -3,6 +3,7 @@ import base64 as b64
 from asyncserial import Serial
 from dataclasses import dataclass
 from common.client import Client
+from common.logging import log_sys, INFO
 
 
 @dataclass
@@ -25,6 +26,12 @@ class Dongle(Client):
     def __init__(self, loop, serial_port, baudrate=115200):
         super().__init__(sub_topic_list=[b'message_s', b'prov_s'],
                          pub_topic_list=[b'message', b'prov', b'beacon'])
+
+        self.ser_log = log_sys.get_logger('dongle.serial')
+        self.ch_log = log_sys.get_logger('dongle.channel')
+        self.ser_log.set_level(INFO)
+        self.ch_log.set_level(INFO)
+
         self.loop = loop
         self.serial_port = serial_port
         self.baudrate = baudrate
@@ -45,8 +52,8 @@ class Dongle(Client):
         while True:
             serial_msg = await self._read_from_serial()
 
-            print(f'[Serial] Got a message with type {serial_msg.msg_type} and '
-                  f'content {b64.b64decode(serial_msg.content_b64).hex()}')
+            self.ser_log.debug(f'Got a message with type {serial_msg.msg_type} and '
+                               f'content {b64.b64decode(serial_msg.content_b64).hex()}')
 
             dongle_msg = self._translate_serial_message(serial_msg)
 
@@ -56,7 +63,7 @@ class Dongle(Client):
     async def _transport_message_task(self):
         while True:
             (msg_type, content) = await self.messages_received.get()
-            print(f'[0MQ] Got a message with type {msg_type} and content {content}')
+            self.ch_log.debug(f'[Got a message with type {msg_type} and content {content.hex()}')
             dongle_msg = DongleMessage(msg_type, content)
 
             serial_msg = self._translate_dongle_message(dongle_msg)
@@ -66,8 +73,8 @@ class Dongle(Client):
     async def _write_serial_task(self):
         while True:
             serial_msg = await self.write_serial_queue.get()
-            print(f'Send a message with type {serial_msg.msg_type} and '
-                  f'content {serial_msg.content_b64}')
+            self.ser_log.debug(f'Send a message with type {serial_msg.msg_type} and '
+                               f'content {serial_msg.content_b64}')
 
             await self._write_on_serial(serial_msg)
 
@@ -77,7 +84,6 @@ class Dongle(Client):
             data = await self.serial.read()
             line += data
             if b'\r\n' in line:
-                # print(f'Line: {line}')
                 if line[0:1] != b'@':
                     line = b''
                     continue

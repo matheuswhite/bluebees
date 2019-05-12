@@ -1,10 +1,8 @@
 import asyncio
 import zmq.asyncio
 from zmq.asyncio import Context
-import logging
+from common.logging import log_sys, INFO
 from common.asyncio_fixup import wakeup
-
-logging.basicConfig(level=logging.INFO)
 
 
 class Broker:
@@ -12,6 +10,9 @@ class Broker:
     def __init__(self, loop):
         self.loop = loop
         self.publish_queue = asyncio.Queue()
+
+        self.broker_log = log_sys.get_logger('broker')
+        self.broker_log.set_level(INFO)
 
         self.listen_url = 'tcp://127.0.0.1:9500'
         self.pub_url = 'tcp://127.0.0.1:9501'
@@ -44,7 +45,7 @@ class Broker:
         # ! spawn corroutine to receive data from topic_list on client port
         self.loop.create_task(self._subscribe_task(self.subs[client_port],
                                                    client_port))
-        print(f'New client connected using port {client_port}')
+        self.broker_log.info(f'New client connected using port {client_port}')
 
     async def _subscribe_task(self, sub_socket, port):
         while True:
@@ -52,7 +53,7 @@ class Broker:
 
             if topic == b'disconnect' and content != b'broker':
                 del self.subs[port]
-                print(f'Client on port {port} diconnected')
+                self.broker_log.warning(f'Client on port {port} diconnected')
                 break
 
             await self.publish_queue.put((topic, content))

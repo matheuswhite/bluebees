@@ -8,6 +8,7 @@ from ecdsa.ellipticcurve import Point
 from common.crypto import crypto
 from Crypto.Random import get_random_bytes
 from typing import List
+from common.logging import log_sys, INFO
 import asyncio
 
 
@@ -77,8 +78,11 @@ class Provisioner(Client):
 
     def __init__(self, loop, device_uuid: bytes, netkey: bytes,
                  key_index: bytes, iv_index: bytes, address: bytes,
-                 flags=b'\x00', attention_duration=5):
+                 flags=b'\x00', attention_duration=5, debug=False):
         super().__init__(sub_topic_list=[b'prov'], pub_topic_list=[b'prov_s'])
+
+        self.log = log_sys.get_logger('provisioner')
+        self.log.set_level(INFO)
 
         self.adv_mtu = 24
         self.start_pdu = 0
@@ -192,7 +196,7 @@ class Provisioner(Client):
                         mount_pdu_func) -> bool:
         timeout = int(total_timeout / tries)
         for try_ in range(tries):
-            print(colored.cyan(f'Send {phase_name} PDU'))
+            self.log.debug(f'Send {phase_name} PDU')
             content = mount_pdu_func()
 
             generic_prov_pdus = self.__mount_generic_prov_pdu(content)
@@ -201,15 +205,15 @@ class Provisioner(Client):
                 await self.messages_to_send.put((b'prov_s', pdu))
 
             try:
-                print(colored.cyan('Waiting ack...'))
+                self.log.debug('Waiting ack...')
                 await wait_for(self.__wait_ack(), timeout=timeout)
 
-                print(colored.green(f'Send {phase_name} PDU successful'))
+                self.log.debug(f'Send {phase_name} PDU successful')
                 self.prov_ctx.client_tr_number += 1
                 return True
             except asyncio.TimeoutError:
-                print(colored.yellow(f'{try_ + 1}{order(try_ + 1)} '
-                                     f'{phase_name} PDU fail'))
+                self.log.debug(f'{try_ + 1}{order(try_ + 1)} '
+                               f'{phase_name} PDU fail')
 
         return False
 
@@ -237,10 +241,10 @@ class Provisioner(Client):
                 total_len = len(self.g_recv_ctx.content)
                 if total_len != self.g_recv_ctx.total_length:
                     self.g_recv_ctx.reset()
-                    print(colored.red('Wrong total len'))
+                    self.log.debug('Wrong total len')
                 elif calc_fcs != self.g_recv_ctx.fcs:
                     self.g_recv_ctx.reset()
-                    print(colored.red('Wrong FCS'))
+                    self.log.debug('Wrong FCS')
                 else:
                     pdu = self.g_recv_ctx.content
                     self.g_recv_ctx.reset()
@@ -257,10 +261,10 @@ class Provisioner(Client):
                     total_len = len(self.g_recv_ctx.content)
                     if total_len != self.g_recv_ctx.total_length:
                         self.g_recv_ctx.reset()
-                        print(colored.red('Wrong total len'))
+                        self.log.debug('Wrong total len')
                     elif calc_fcs != self.g_recv_ctx.fcs:
                         self.g_recv_ctx.reset()
-                        print(colored.red('Wrong FCS'))
+                        self.log.debug('Wrong FCS')
                     else:
                         pdu = self.g_recv_ctx.content
                         self.g_recv_ctx.reset()
@@ -290,11 +294,11 @@ class Provisioner(Client):
     async def _wait_pdu(self, ack_tries: int, phase_name: str, timeout: int,
                         check_pdu_func) -> bool:
         try:
-            print(colored.cyan(f'Waiting {phase_name} PDU...'))
+            self.log.debug(f'Waiting {phase_name} PDU...')
             await wait_for(self.__wait_pdu_atomic(check_pdu_func), timeout)
 
             for try_ in range(ack_tries):
-                print(f'Send {try_ + 1}{order(try_ + 1)} ack pdu')
+                self.log.debug(f'Send {try_ + 1}{order(try_ + 1)} ack pdu')
                 await self.__send_ack()
                 await asyncio.sleep(.3)
 
@@ -313,15 +317,15 @@ class Provisioner(Client):
         return content
 
     def _check_capabilities_pdu(self, content) -> bool:
-        print(colored.magenta('Capabilities:'))
-        print(colored.magenta(f'Number of Elements: {content[1]}'))
-        print(colored.magenta(f'Algorithms: {int.from_bytes(content[2:4], "big")}'))
-        print(colored.magenta(f'Public Key Type: {content[4]}'))
-        print(colored.magenta(f'Static OOB Type: {content[5]}'))
-        print(colored.magenta(f'Output OOB Size: {content[6]}'))
-        print(colored.magenta(f'Output OOB Action: {int.from_bytes(content[7:9], "big")}'))
-        print(colored.magenta(f'Input OOB Size: {content[9]}'))
-        print(colored.magenta(f'Input OOB Action: {int.from_bytes(content[10:12], "big")}'))
+        self.log.debug('Capabilities:')
+        self.log.debug(f'Number of Elements: {content[1]}')
+        self.log.debug(f'Algorithms: {int.from_bytes(content[2:4], "big")}')
+        self.log.debug(f'Public Key Type: {content[4]}')
+        self.log.debug(f'Static OOB Type: {content[5]}')
+        self.log.debug(f'Output OOB Size: {content[6]}')
+        self.log.debug(f'Output OOB Action: {int.from_bytes(content[7:9], "big")}')
+        self.log.debug(f'Input OOB Size: {content[9]}')
+        self.log.debug(f'Input OOB Action: {int.from_bytes(content[10:12], "big")}')
 
         self.prov_ctx.capabilities_pdu = content[1:]
 
@@ -344,8 +348,8 @@ class Provisioner(Client):
         content += public_key_x
         content += public_key_y
 
-        print(colored.magenta(f'Pub key x {public_key_x.hex()}'))
-        print(colored.magenta(f'Pub key y {public_key_y.hex()}'))
+        self.log.debug(f'Pub key x {public_key_x.hex()}')
+        self.log.debug(f'Pub key y {public_key_y.hex()}')
 
         return content
 
@@ -380,12 +384,12 @@ class Provisioner(Client):
                                    text=self.prov_ctx.random_provisioner +
                                    self.prov_ctx.auth_value)
 
-        print(colored.magenta(f'ConfInputs[0]   {confirmation_inputs[0:64].hex()}'))
-        print(colored.magenta(f'ConfInputs[64]  {confirmation_inputs[64:128].hex()}'))
-        print(colored.magenta(f'ConfInputs[128] {confirmation_inputs[128:145].hex()}'))
-        print(colored.magenta(f'confirmation key: {self.prov_ctx.confirmation_key.hex()}'))
-        print(colored.magenta(f'random device: {self.prov_ctx.random_provisioner.hex()}'))
-        print(colored.magenta(f'authvalue: {self.prov_ctx.auth_value.hex()}'))
+        self.log.debug(f'ConfInputs[0]   {confirmation_inputs[0:64].hex()}')
+        self.log.debug(f'ConfInputs[64]  {confirmation_inputs[64:128].hex()}')
+        self.log.debug(f'ConfInputs[128] {confirmation_inputs[128:145].hex()}')
+        self.log.debug(f'confirmation key: {self.prov_ctx.confirmation_key.hex()}')
+        self.log.debug(f'random device: {self.prov_ctx.random_provisioner.hex()}')
+        self.log.debug(f'authvalue: {self.prov_ctx.auth_value.hex()}')
 
         return content
 
@@ -447,117 +451,127 @@ class Provisioner(Client):
         await asyncio.sleep(.1)
 
         # link open phase
+        self.log.info(f'Opening link with device {self.device_info.uuid}')
         for try_ in range(10):
-            print(colored.cyan(f'Open device link '
-                               f'{self.prov_ctx.device_link}'))
+            self.log.debug(f'Open device link {self.prov_ctx.device_link}')
             await self._open_link()
 
             try:
-                print(colored.cyan(f'Waiting link ack...'))
+                self.log.debug(f'Waiting link ack...')
                 await wait_for(self._wait_link_ack(), timeout=3)
 
-                # self.prov_ctx.client_tr_number += 1
-                print(colored.green('Link open successfull'))
+                self.log.success('Link open successfull')
                 success = True
                 break
             except asyncio.TimeoutError:
-                print(colored.yellow(f'{try_ + 1}{order(try_ + 1)} open link '
-                                     f'try fail'))
+                self.log.debug(f'{try_ + 1}{order(try_ + 1)} open link try '
+                               f'fail')
                 continue
 
         if not success:
-            print(colored.red('Link open fail'))
+            self.log.error('Link open fail')
             raise LinkOpenError
 
         # invitation phase
+        self.log.info('Running step [1/11] ...')
         success = await self._send_pdu(tries=10, phase_name='invite',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_invite_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_invite_pdu)
         if not success:
-            print(colored.red('Send invite PDU fail'))
+            self.log.error('Step [1/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [2/11] ...')
         success = await self._wait_pdu(ack_tries=3, phase_name='capabilities',
-                                            timeout=30,
-                                            check_pdu_func=self._check_capabilities_pdu)
+                                       timeout=30,
+                                       check_pdu_func=self._check_capabilities_pdu)
         if not success:
-            print(colored.red('Wait capabilities PDU fail'))
+            self.log.error('Step [2/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
         # exchanging public keys phase
+        self.log.info('Running step [3/11] ...')
         success = await self._send_pdu(tries=10, phase_name='start',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_start_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_start_pdu)
         if not success:
-            print(colored.red('Send start PDU fail'))
+            self.log.error('Step [3/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [4/11] ...')
         success = await self._send_pdu(tries=10, phase_name='exchange keys',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_public_key_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_public_key_pdu)
         if not success:
-            print(colored.red('Send public key PDU fail'))
+            self.log.error('Step [4/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [5/11] ...')
         success = await self._wait_pdu(ack_tries=3, phase_name='exchange keys',
-                                            timeout=30,
-                                            check_pdu_func=self._check_public_key_pdu)
+                                       timeout=30,
+                                       check_pdu_func=self._check_public_key_pdu)
         if not success:
-            print(colored.red('Wait public key PDU fail'))
+            self.log.error('Step [5/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
         # authentication phase
+        self.log.info('Running step [6/11] ...')
         success = await self._send_pdu(tries=10, phase_name='confirmation',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_confirmation_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_confirmation_pdu)
         if not success:
-            print(colored.red('Send confirmation PDU fail'))
+            self.log.error('Step [6/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [7/11] ...')
         success = await self._wait_pdu(ack_tries=3, phase_name='confirmation',
-                                            timeout=30,
-                                            check_pdu_func=self._check_confirmation_pdu)
+                                       timeout=30,
+                                       check_pdu_func=self._check_confirmation_pdu)
         if not success:
-            print(colored.red('Wait confirmation PDU fail'))
+            self.log.error('Step [7/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [8/11] ...')
         success = await self._send_pdu(tries=10, phase_name='random',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_random_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_random_pdu)
         if not success:
-            print(colored.red('Send random PDU fail'))
+            self.log.error('Step [8/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [9/11] ...')
         success = await self._wait_pdu(ack_tries=3, phase_name='random',
-                                            timeout=30,
-                                            check_pdu_func=self._check_random_pdu)
+                                       timeout=30,
+                                       check_pdu_func=self._check_random_pdu)
         if not success:
-            print(colored.red('Wait random PDU fail'))
+            self.log.error('Step [9/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
         # distribuition of provisioning data phase
+        self.log.info('Running step [10/11] ...')
         success = await self._send_pdu(tries=10, phase_name='data',
-                                            total_timeout=30,
-                                            mount_pdu_func=self._mount_data_pdu)
+                                       total_timeout=30,
+                                       mount_pdu_func=self._mount_data_pdu)
         if not success:
-            print(colored.red('Send data PDU fail'))
+            self.log.error('Step [10/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 
+        self.log.info('Running step [11/11] ...')
         success = await self._wait_pdu(ack_tries=3, phase_name='complete',
-                                            timeout=30,
-                                            check_pdu_func=self._check_complete_pdu)
+                                       timeout=30,
+                                       check_pdu_func=self._check_complete_pdu)
         if not success:
-            print(colored.red('Wait complete PDU fail'))
+            self.log.error('Step [11/11] FAIL')
             await self.close_link(b'\x01')  # timeout
             raise ProvisioningError
 

@@ -1,10 +1,8 @@
 import asyncio
 import zmq.asyncio
 from zmq.asyncio import Context
-import logging
+from common.logging import log_sys, INFO
 from common.asyncio_fixup import wakeup
-
-logging.basicConfig(level=logging.INFO)
 
 
 class Client:
@@ -13,6 +11,9 @@ class Client:
         self.pub_topic_list = pub_topic_list + [b'disconnect']
         self.messages_to_send = asyncio.Queue()
         self.messages_received = asyncio.Queue()
+
+        self.client_log = log_sys.get_logger('client')
+        self.client_log.set_level(INFO)
 
         self.pub_url = 'tcp://127.0.0.1:'
         self.broker_listen_url = 'tcp://127.0.0.1:9500'
@@ -54,9 +55,11 @@ class Client:
         while self.is_connected:
             [topic, content] = await self.sub_sock.recv_multipart()
 
+            self.client_log.debug(f'Receive message from "{topic}" topic with '
+                                  f'{content} content')
             if topic == b'disconnect' and content == b'broker':
                 self.is_connected = False
-                print('Disconnected from broker')
+                self.client_log.critical('Disconnected from broker')
                 self.loop.stop()
 
             await self.messages_received.put((topic, content))
@@ -65,7 +68,10 @@ class Client:
         while self.is_connected:
             (topic, content) = await self.messages_to_send.get()
 
+            self.client_log.debug(f'Sending message to "{topic}" topic with '
+                                  f'{content} content')
             await self.pub_sock.send_multipart([topic, content])
+            self.client_log.debug('Message sent')
 
     def disconnect(self):
         self.is_connected = False
@@ -77,6 +83,6 @@ class Client:
         loop.create_task(wakeup())
 
         await self.connect_to_broker()
-        print('Connected to broker')
+        self.client_log.success('Connected to broker')
 
         asyncio.gather(*self.all_tasks)
