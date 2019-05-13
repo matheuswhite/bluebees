@@ -24,6 +24,7 @@ class HardContext:
 class SoftContext:
     src_addr: bytes
     dst_addr: str
+    node_name: str
     network_name: str
     application_name: str
     is_devkey: bool

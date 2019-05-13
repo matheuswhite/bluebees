@@ -1,6 +1,11 @@
 from client.mesh_layers.network_layer import NetworkLayer
 from client.mesh_layers.mesh_context import HardContext, SoftContext
+from client.network.network_data import NetworkData
+from client.application.application_data import ApplicationData
+from client.node.node_data import NodeData
+from client.data_paths import base_dir, net_dir, app_dir, node_dir
 from common.logging import log_sys, INFO
+from common.crypto import crypto
 from typing import List
 import asyncio
 
@@ -25,15 +30,87 @@ class TransportLayer:
 
     # send methods
     def _encrypt_access_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
-        pass
+        net_data = NetworkData.load(base_dir + net_dir +
+                                    soft_ctx.network_name + '.yml')
+        if not soft_ctx.is_devkey:
+            app_data = ApplicationData.load(base_dir + app_dir +
+                                            soft_ctx.application_name +
+                                            '.yml')
+            app_key = app_data.key
+            app_nonce = b'\x01\x00' + \
+                self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
+                soft_ctx.src_addr.to_bytes(2, 'big') + \
+                soft_ctx.dst_addr.to_bytes(2, 'big') + net_data.iv_index
+        else:
+            node_data = NodeData.load(base_dir + node_dir +
+                                      soft_ctx.node_name + '.yml')
+            app_key = node_data.devkey
+            app_nonce = b'\x02\x00' + \
+                self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
+                soft_ctx.src_addr.to_bytes(2, 'big') + \
+                soft_ctx.dst_addr.to_bytes(2, 'big') + net_data.iv_index
+
+        return crypto.aes_ccm(key=app_key, nonce=app_nonce, text=pdu,
+                              adata=b'')
 
     def _unsegmented_transport_pdu(self, pdu: bytes,
                                    soft_ctx: SoftContext) -> bytes:
-        pass
+        if not soft_ctx.is_devkey:
+            app_data = ApplicationData.load(base_dir + app_dir +
+                                            soft_ctx.application_name +
+                                            '.yml')
+            aid = crypto.k4(n=app_data.key)
+            unseg_tr_pdu = 0x00
+        else:
+            node_data = NodeData.load(base_dir + node_dir +
+                                      soft_ctx.node_name + '.yml')
+            aid = crypto.k4(n=node_data.devkey)
+            unseg_tr_pdu = 0x40
+
+        unseg_tr_pdu = (unseg_tr_pdu | (aid & 0x3f)).to_bytes(1, 'big')
+        unseg_tr_pdu += pdu
+
+        return unseg_tr_pdu
+
+    def __header_segmented_transport_pdu(self, soft_ctx: SoftContext,
+                                         seg_n: int, seg_o: int) -> bytes:
+        net_data = NetworkData.load(base_dir + net_dir +
+                                    soft_ctx.network_name + '.yml')
+        seq_auth = (int.from_bytes(net_data.iv_index, 'big') << 24) | \
+            net_data.seq
+        seq_zero = seq_auth & 0x1fff
+
+        first_byte = 0x80
+        if not soft_ctx.is_devkey:
+            app_data = ApplicationData.load(base_dir + app_dir +
+                                            soft_ctx.application_name +
+                                            '.yml')
+            aid = crypto.k4(n=app_data.key)
+        else:
+            node_data = NodeData.load(base_dir + node_dir +
+                                      soft_ctx.node_name + '.yml')
+            aid = crypto.k4(n=node_data.devkey)
+            first_byte = first_byte | 0x40
+        first_byte = (first_byte | (aid & 0x3f)).to_bytes(1, 'big')
+
+        cont = (seg_n & 0x1f)
+        cont = cont | ((seg_o & 0x1f) << 5)
+        cont = (cont | ((seq_zero & 0x1fff) << 10)).to_bytes(3, 'big')
+
+        return first_byte + cont
 
     def _segmented_transport_pdu(self, pdu: bytes,
                                  soft_ctx: SoftContext) -> List[bytes]:
-        pass
+        seg_n = int((len(pdu) - 1) / LT_MTU)
+        segments = []
+
+        for seg_o in range(seg_n + 1):
+            header = self.__header_segmented_transport_pdu(soft_ctx, seg_n,
+                                                           seg_o)
+            segments.append(header + pdu[0:LT_MTU])
+            pdu = pdu[LT_MTU:]
+
+        return segments
 
     async def _wait_ack(self, soft_ctx: SoftContext):
         pass
