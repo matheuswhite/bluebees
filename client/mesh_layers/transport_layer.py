@@ -7,6 +7,10 @@ import asyncio
 LT_MTU = 12
 
 
+# ! Segment Acknowledgment message is a control message and the CTL value is 1,
+# !   and its sizemic is 64-bits
+# ! Control messages has sizemic equals to 64-bits, since access message has
+# !   sizemic equals to 32-bits.
 class AckTimeout(Exception):
     pass
 
