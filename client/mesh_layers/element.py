@@ -27,7 +27,8 @@ class Element(Client):
         self.log = log_sys.get_logger('element')
         self.log.set_level(INFO)
 
-        self.tr_layer = TransportLayer()
+        self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
+                                       recv_queue=self.messages_received)
 
         self.all_tasks += [self.tr_layer.net_layer.recv_pdu()]
 
@@ -43,6 +44,8 @@ class Element(Client):
             check_parameters(opcode, parameters)
 
             await self.tr_layer.send_pdu(opcode, ctx)
+
+            self.tr_layer.net_layer.hard_ctx.seq += 1
         except Exception as e:
             self.log.critical(f'Unknown Exception:\n{e}')
         except OpcodeLengthError:

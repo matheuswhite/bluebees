@@ -23,8 +23,9 @@ class AckTimeout(Exception):
 
 class TransportLayer:
 
-    def __init__(self):
-        self.net_layer = NetworkLayer()
+    def __init__(self, send_queue, recv_queue):
+        self.net_layer = NetworkLayer(send_queue=send_queue,
+                                      recv_queue=recv_queue)
 
         self.log = log_sys.get_logger('transport_layer')
         self.log.set_level(INFO)
@@ -209,6 +210,7 @@ class TransportLayer:
             self.log.error(f'Not found any application with AID equals to '
                            f'{hex(aid)}')
             return None
+        ctx.application_name = app_name
         ctx.is_devkey = afk == 0
 
         return ctx
