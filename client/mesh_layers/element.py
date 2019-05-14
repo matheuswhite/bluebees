@@ -61,9 +61,11 @@ class Element(Client):
             self.log.warning('Ack timeout')
 
     async def _recv_message_atomic(self, opcode: bytes,
-                                   ctx: SoftContext) -> bytes:
+                                   segment_timeout: int) -> bytes:
         while True:
-            content = await self.tr_layer.recv_pdu(ctx)
+            content, _ = await self.tr_layer.recv_pdu(segment_timeout)
+            if not content:
+                continue
             op_len = opcode_len(content[0:1])
             if content[0:op_len] == opcode:
                 return content[1:]

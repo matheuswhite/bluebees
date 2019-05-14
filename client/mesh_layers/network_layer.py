@@ -8,7 +8,7 @@ class NetworkLayer:
         self.hard_ctx = HardContext()
         self.hard_ctx.reset()
 
-        # transport_pdu: bytes
+        # (transport_pdu: bytes, soft_ctx: SoftContext)
         self.transport_pdus = asyncio.Queue()
 
     async def send_pdu(self, transport_pdu: bytes, soft_ctx: SoftContext):
