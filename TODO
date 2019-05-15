@@ -29,8 +29,8 @@ Tasks:
     ☐ Add a test file to node_data.py
     ☐ Add a test file to crypto.py
   Template:
-    ☐ Add exception handling to 'get_field'
     ☐ Move the location of 'seq.yml' to '.bluebees' folder
+    ☐ Add a method to increment the sequence in seq.yml, in case of success
   Core:
     ✔ Test core performance @done(19-05-11 18:23)
   Network:
