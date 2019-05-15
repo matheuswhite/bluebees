@@ -22,6 +22,12 @@ Tasks:
         This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
     ☐ Check possible spurious exceptions
+  Testes:
+    ✔ Add a test file to file.py @done(19-05-15 15:13)
+    ☐ Add a test file to application_data.py
+    ☐ Add a test file to network_data.py
+    ☐ Add a test file to node_data.py
+    ☐ Add a test file to crypto.py
   Template:
     ☐ Add exception handling to 'get_field'
     ☐ Move the location of 'seq.yml' to '.bluebees' folder
