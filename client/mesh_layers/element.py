@@ -19,6 +19,7 @@ class DstAddressError(Exception):
     pass
 
 
+# ! Check the byte order in this layer
 class Element(Client):
 
     def __init__(self):
@@ -42,7 +43,10 @@ class Element(Client):
             check_opcode(opcode)
             check_parameters(opcode, parameters)
 
-            await self.tr_layer.send_pdu(opcode, ctx)
+            pdu = opcode + parameters
+            pdu = pdu[::-1]
+
+            await self.tr_layer.send_pdu(pdu, ctx)
         except Exception as e:
             self.log.critical(f'Unknown Exception:\n{e}')
         except OpcodeLengthError:
@@ -78,6 +82,8 @@ class Element(Client):
                 await asyncio.wait_for(self._recv_message_atomic(opcode,
                                                                  segment_timeout),
                                        timeout=timeout)
+
+            content = content[::-1]
         except Exception as e:
             self.log.critical(f'Unknown Exception:\n{e}')
         except OpcodeLengthError:
