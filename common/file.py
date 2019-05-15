@@ -1,26 +1,22 @@
 import os
 import errno
-import yaml
 from os import listdir
 from os.path import isfile, join
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
+import ruamel.yaml
 
 
 class FileHelper:
 
     def __init__(self):
-        pass
+        self.yaml = ruamel.yaml.YAML()
 
     def read(self, filename):
         if not self.file_exist(filename):
             return {}
 
         with open(filename, 'r') as f:
-            content = ''.join(f.readlines())
-        return yaml.load(content, Loader=Loader)
+            content = self.yaml.load(f)
+        return content
 
     def list_files(self, dirpath):
         try:
@@ -42,13 +38,10 @@ class FileHelper:
                 os.makedirs(os.path.dirname(filename))
             except OSError as exc:
                 if exc.errno != errno.EEXIST:
-                    raise
+                    raise Exception
 
         with open(filename, 'w') as f:
-            stream = yaml.dump(content, Dumper=Dumper,
-                               default_flow_style=False)
-            f.write(stream)
-            f.close()
+            self.yaml.dump(content, f)
 
     def file_exist(self, filename):
         return os.path.isfile(filename)
