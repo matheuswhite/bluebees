@@ -4,12 +4,14 @@ Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
   ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
-  ☐ Add devkey to node
+  ✔ Add devkey to node @started(19-05-15 10:28) @done(19-05-15 10:37) @lasted(9m54s)
     k1(ECDHSecret, ProvSalt, b'prdk')
-  ☐ Check byteorder of mesh layers
-  ☐ Add seq number to network
-  ☐ Send a close link on keyboard interrupt
-  ☐ Add a task to clear serial messages
+  ✔ Check byteorder of mesh layers @done(19-05-15 10:47)
+  ✔ Add seq number to network @done(19-05-15 10:41)
+  ✔ Add a task to clear serial messages @done(19-05-15 10:57)
+  ✔ Catch a incoming device close message @started(19-05-15 11:30) @done(19-05-15 11:44) @lasted(14m44s)
+  ☐ Save seq number on each change
+  ✔ Send a close link on keyboard interrupt @started(19-05-15 11:04) @done(19-05-15 11:28) @lasted(24m40s)
   ☐ Change PyYAML by ruamel.yaml
 
 Tasks:
