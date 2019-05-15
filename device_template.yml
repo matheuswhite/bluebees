@@ -1,0 +1,10 @@
+ayna:
+  net:
+    name: &net_name ayna-net01
+  device:
+    name: vsx-\S
+    description: \A\a\c\t
+    address: \h\h\h\h
+    net_name: *net_name
+  app:
+    name: vsx-app
