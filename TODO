@@ -1,73 +1,58 @@
-
-
+Tasks:
 Fix:
   ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
   ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
   ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
-  ☐ Add devkey to node
+  ✔ Add devkey to node @started(19-05-15 10:28) @done(19-05-15 10:37) @lasted(9m54s)
     k1(ECDHSecret, ProvSalt, b'prdk')
-  ☐ Check byteorder of mesh layers
-  ☐ Add seq number to network
-  ☐ Save seq value to file
-  ☐ Send a close link on keyboard interrupt
-  ☐ Add a task to clear serial messages periodicaly
-  ☐ Change PyYAML by ruamel.yaml
-
-Tasks:
-  Fix:
-    ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
-    ✔ Add directory creation in file helper @started(19-05-03 19:51) @done(19-05-03 20:05) @lasted(14m)
-    ✔ Change trailing zeros in 'device_uuid' from front to back @started(19-05-10 14:30) @done(19-05-10 14:31) @lasted(1m47s)
-    ✔ Add devkey to node @started(19-05-15 10:28) @done(19-05-15 10:37) @lasted(9m54s)
-      k1(ECDHSecret, ProvSalt, b'prdk')
-    ✔ Check byteorder of mesh layers @done(19-05-15 10:47)
-    ✔ Add seq number to network @done(19-05-15 10:41)
-    ✔ Add a task to clear serial messages @done(19-05-15 10:57)
-    ✔ Catch a incoming device close message @started(19-05-15 11:30) @done(19-05-15 11:44) @lasted(14m44s)
-    ☐ Save seq number on each change
-    ✔ Send a close link on keyboard interrupt @started(19-05-15 11:04) @done(19-05-15 11:28) @lasted(24m40s)
-    ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
-  Enhancement:
-    ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
-    ✘ Change print for logger @started(19-05-12 17:26) @cancelled(19-05-14 13:58) @wasted(1d20h32m7s)
-    ☐ Add a task in 'core run' to show status
-        This status will be published on 'core_stats' channel
-    ☐ Add 'raise exceptions' instead of 'return None'
-    ☐ Check possible spurious exceptions
-  Testes:
-    ✔ Add a test file to file.py @done(19-05-15 15:13)
-    ☐ Add a test file to application_data.py
-    ☐ Add a test file to network_data.py
-    ☐ Add a test file to node_data.py
-    ✔ Add a test file to crypto.py @started(19-05-16 10:45) @done(19-05-16 10:49) @lasted(4m28s)
-  Template:
-    ☐ Move the location of 'seq.yml' to '.bluebees' folder
-    ☐ Add a method to increment the sequence in seq.yml, in case of success
-  Mesh:
-    ☐ Implement transport layer
-    ☐ Implement network layer
-    ☐ Test mesh implementation
-  Core:
-    ✔ Test core performance @done(19-05-11 18:23)
-  Network:
-    ✔ Implement new command @done(19-05-04 18:53)
-    ✔ Add template to new command @started(19-05-05 12:19) @done(19-05-05 12:35) @lasted(16m17s)
-    ✔ Implement list command @done(19-05-05 12:39)
-    ✔ Implement info command @started(19-05-05 12:39) @done(19-05-05 12:48) @lasted(9m47s)
-    ✔ Check the size of net key in template @done(19-05-05 13:02)
-  App:
-    ✔ Implement new command @done(19-05-05 14:33)
-    ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)
-    ✔ Implement info command @started(19-05-05 14:40) @done(19-05-05 14:46) @lasted(6m58s)
-  Node:
-    ✔ Implement new command @started(19-05-05 14:58) @done(19-05-07 21:00) @lasted(2d6h2m25s)
-    ✔ Implement list command @done(19-05-07 21:13)
-    ✔ Implement info command @done(19-05-07 21:13)
-    ✔ Implement provisioning layers @done(19-05-09 15:15)
-    ✔ Test provisioning @started(19-05-10 14:25) @done(19-05-11 18:23) @lasted(1d3h58m24s)
-    ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
-    ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
-    ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
-    ☐ Implement the real send command
-    ☐ Implement the real req command
-    ☐ Implement the real config command
+  ✔ Check byteorder of mesh layers @done(19-05-15 10:47)
+  ✔ Add seq number to network @done(19-05-15 10:41)
+  ✔ Add a task to clear serial messages @done(19-05-15 10:57)
+  ✔ Catch a incoming device close message @started(19-05-15 11:30) @done(19-05-15 11:44) @lasted(14m44s)
+  ☐ Save seq number on each change
+  ✔ Send a close link on keyboard interrupt @started(19-05-15 11:04) @done(19-05-15 11:28) @lasted(24m40s)
+  ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
+Enhancement:
+  ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
+  ☐ Change print for logger @started(19-05-12 17:26)
+  ☐ Add a task in 'core run' to show status
+      This status will be published on 'core_stats' channel
+  ☐ Add 'raise exceptions' instead of 'return None'
+  ☐ Check possible spurious exceptions
+Testes:
+  ✔ Add a test file to file.py @done(19-05-15 15:13)
+  ☐ Add a test file to application_data.py
+  ☐ Add a test file to network_data.py
+  ☐ Add a test file to node_data.py
+  ✔ Add a test file to crypto.py @done(19-05-16 17:59)
+Template:
+  ☐ Move the location of 'seq.yml' to '.bluebees' folder
+  ☐ Add a method to increment the sequence in seq.yml, in case of success
+Mesh:
+  ☐ Implement transport layer
+  ☐ Implement network layer
+  ☐ Test mesh implementation
+Core:
+  ✔ Test core performance @done(19-05-11 18:23)
+Network:
+  ✔ Implement new command @done(19-05-04 18:53)
+  ✔ Add template to new command @started(19-05-05 12:19) @done(19-05-05 12:35) @lasted(16m17s)
+  ✔ Implement list command @done(19-05-05 12:39)
+  ✔ Implement info command @started(19-05-05 12:39) @done(19-05-05 12:48) @lasted(9m47s)
+  ✔ Check the size of net key in template @done(19-05-05 13:02)
+App:
+  ✔ Implement new command @done(19-05-05 14:33)
+  ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)
+  ✔ Implement info command @started(19-05-05 14:40) @done(19-05-05 14:46) @lasted(6m58s)
+Node:
+  ✔ Implement new command @started(19-05-05 14:58) @done(19-05-07 21:00) @lasted(2d6h2m25s)
+  ✔ Implement list command @done(19-05-07 21:13)
+  ✔ Implement info command @done(19-05-07 21:13)
+  ✔ Implement provisioning layers @done(19-05-09 15:15)
+  ✔ Test provisioning @started(19-05-10 14:25) @done(19-05-11 18:23) @lasted(1d3h58m24s)
+  ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
+  ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
+  ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
+  ☐ Implement the real send command
+  ☐ Implement the real req command
+  ☐ Implement the real config command
