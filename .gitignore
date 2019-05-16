@@ -3,3 +3,7 @@
 *lib/*
 __pycache__/
 tests/.cache/*
+.pytest_cache/
+.bluebees/node/*
+.bluebees/app/*
+.bluebees/net/*
