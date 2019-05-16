@@ -2,6 +2,7 @@ from client.mesh_layers.mesh_context import HardContext, SoftContext
 from client.network.network_data import NetworkData
 from client.data_paths import base_dir, app_dir, net_dir
 from common.logging import log_sys, INFO
+from common.crypto import crypto
 import asyncio
 
 
@@ -22,17 +23,45 @@ class NetworkLayer:
     # send methods
     def _gen_security_material(self,
                                net_data: NetworkData) -> (int, bytes, bytes):
-        pass
+        materials = crypto.k2(n=net_data.key, p=b'\x00')
+        nid = (materials & (0x7f << 32)) >> 32
+        encryption_key = (materials & (0xFFFF_FFFF_FFFF_FFFF << 16)) >> 16
+        privacy_key = materials & 0xFFFF_FFFF_FFFF_FFFF
+        return nid, encryption_key.to_bytes(16, 'big'), \
+            privacy_key.to_bytes(16, 'big')
 
     def _encrypt(self, soft_ctx: SoftContext, transport_pdu: bytes,
                  encryption_key: bytes,
                  net_nonce: bytes) -> (bytes, bytes, bytes):
-        pass
+        aes_ccm_result = crypto.aes_ccm(key=encryption_key, nonce=net_nonce,
+                                        text=soft_ctx.dst_addr + transport_pdu,
+                                        adata=b'')
+        if self.hard_ctx.is_crtl_msg:
+            enc_dst = aes_ccm_result[0:2]
+            encrypted_data = aes_ccm_result[2:-8]
+            net_mic = aes_ccm_result[-8:]
+        else:
+            enc_dst = aes_ccm_result[0:2]
+            encrypted_data = aes_ccm_result[2:-4]
+            net_mic = aes_ccm_result[-4:]
+        return enc_dst, encrypted_data, net_mic
+
+    def __xor(a: bytes, b: bytes):
+        c = b''
+        for x in range(len(a)):
+            c += int(a[x] ^ b[x]).to_bytes(1, 'big')
+        return c
 
     def _obsfucate(self, ctl: int, ttl: int, seq: int, src: bytes,
                    enc_dst: bytes, enc_transport_pdu: bytes, net_mic: bytes,
-                   privacy_key: bytes) -> bytes:
-        pass
+                   privacy_key: bytes, net_data: NetworkData) -> bytes:
+        privacy_random = (enc_dst + enc_transport_pdu + net_dir)[0:7]
+        pecb = crypto.e(key=privacy_key, plaintext=b'\x00\x00\x00\x00\x00' +
+                                                   net_data.iv_index +
+                                                   privacy_random)
+        obsfucated_data = self.__xor((ctl | ttl).to_bytes(1, 'big') + seq +
+                                     src, pecb[0:6])
+        return obsfucated_data
 
     async def send_pdu(self, transport_pdu: bytes, soft_ctx: SoftContext):
         net_data = NetworkData.load(base_dir + net_dir + soft_ctx.network_name
@@ -41,9 +70,7 @@ class NetworkLayer:
         nid, encryption_key, privacy_key = \
             self._gen_security_material(net_data)
 
-        net_pdu = b''
-        net_pdu += (int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7) | nid)
-        ivi = (int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7 | nid
+        ivi = ((int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7)
         ctl = 0x80 if self.hard_ctx.is_ctrl_msg else 0x00
         ttl = self.hard_ctx.ttl & 0x7f
         seq = self.hard_ctx.seq
@@ -58,7 +85,8 @@ class NetworkLayer:
                                                             net_nonce)
 
         obsfucated = self._obsfucate(ctl, ttl, seq, src, enc_dst,
-                                     enc_transport_pdu, net_mic, privacy_key)
+                                     enc_transport_pdu, net_mic, privacy_key,
+                                     net_data)
 
         network_pdu = (ivi | nid).to_bytes(1, 'big') + obsfucated + enc_dst + \
             enc_transport_pdu + net_mic
