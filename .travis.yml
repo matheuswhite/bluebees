@@ -3,7 +3,6 @@ language: python
 branches:
   only:
     - master
-    - hotfix
 
 matrix:
   include:
