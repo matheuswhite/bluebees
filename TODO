@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 
 
 Fix:
@@ -14,8 +13,6 @@ Fix:
   ☐ Add a task to clear serial messages periodicaly
   ☐ Change PyYAML by ruamel.yaml
 
-=======
->>>>>>> 7e6b073cc0b3ac61b4d300ff4e792714a674c4ce
 Tasks:
   Fix:
     ✔ Show help message in case of invalid arguments @started(19-05-03 20:55) @done(19-05-03 21:09) @lasted(14m57s)
@@ -42,7 +39,7 @@ Tasks:
     ☐ Add a test file to application_data.py
     ☐ Add a test file to network_data.py
     ☐ Add a test file to node_data.py
-    ☐ Add a test file to crypto.py
+    ✔ Add a test file to crypto.py @started(19-05-16 10:45) @done(19-05-16 10:49) @lasted(4m28s)
   Template:
     ☐ Move the location of 'seq.yml' to '.bluebees' folder
     ☐ Add a method to increment the sequence in seq.yml, in case of success
