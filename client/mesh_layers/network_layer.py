@@ -1,6 +1,6 @@
 from client.mesh_layers.mesh_context import HardContext, SoftContext
 from client.network.network_data import NetworkData
-from client.data_paths import base_dir, app_dir, net_dir
+from client.data_paths import base_dir, net_dir
 from common.logging import log_sys, INFO
 from common.crypto import crypto
 from common.file import file_helper
@@ -95,14 +95,14 @@ class NetworkLayer:
         await self.send_queue.put((b'message_s', network_pdu))
 
     # receive methods
-    def __search_network_by_nid(self, nid: int) -> str:
+    def __search_network_by_nid(self, nid: int) -> NetworkData:
         filenames = file_helper.list_files(base_dir + net_dir)
 
         for f in filenames:
             net_data = NetworkData.load(base_dir + net_dir + f)
             net_nid, _, _ = self._gen_security_material(net_data)
             if net_nid == nid:
-                return net_data.name
+                return net_data
 
         return None
 
@@ -110,15 +110,30 @@ class NetworkLayer:
         _, _, privacy_key = self._gen_security_material(net_data)
         privacy_random = net_pdu[7:14]
         obsfucated_data = net_pdu[1:7]
+        pecb = crypto.e(key=privacy_key, plaintext=b'\x00\x00\x00\x00\x00' +
+                        net_data.iv_index + privacy_random)
+        clean_result = self.__xor(obsfucated_data, pecb[0:6])
+        return clean_result
 
-    def _fill_hard_ctx(self, transport_pdu: bytes):
-        pass
+    # TODO [Enhancement] Check the seq number
+    def _fill_hard_ctx(self, clean_pdu: bytes):
+        self.hard_ctx.is_crtl_msg = (clean_pdu[0] & 0x80 >> 7) == 1
+        self.hard_ctx.seq = int.from_bytes(clean_pdu[1:4], 'big')
 
-    def _decrypt(self, encrypted_pdu: bytes) -> bytes:
-        pass
+    def _decrypt(self, encrypted_pdu: bytes) -> (bytes, bytes):
+        encryption_key = b''
+        network_nonce = b''
+        aes_ccm_result = crypto.aes_ccm(key=encryption_key,
+                                        nonce=network_nonce,
+                                        text=encrypted_pdu, adata=b'')
+        if self.hard_ctx.is_crtl_msg:
+            decrypted_pdu = aes_ccm_result[0:-8]
+            calc_net_mic = aes_ccm_result[-8:]
+        else:
+            decrypted_pdu = aes_ccm_result[0:-4]
+            calc_net_mic = aes_ccm_result[-4:]
 
-    def _fill_soft_ctx(self, transport_pdu: bytes) -> SoftContext:
-        pass
+        return decrypted_pdu, calc_net_mic
 
     async def recv_pdu(self):
         while True:
@@ -136,27 +151,25 @@ class NetworkLayer:
                 continue
 
             # remove obsfucation
-            transport_pdu = self._clean_message(net_pdu, net_data)
+            clean_pdu = self._clean_message(net_pdu, net_data)
 
             # update seq, is_crtl_msg
-            self._fill_hard_ctx(transport_pdu)
+            self._fill_hard_ctx(clean_pdu)
 
-            if self.hard_ctx.is_crtl_msg == 0:
-                net_mic = net_pdu[-4:]
-                encrypted_pdu = net_pdu[7:-4]
-                transport_pdu += self._decrypt(encrypted_pdu)
-                calc_net_mic = transport_pdu[-4:]
-            else:
-                net_mic = net_pdu[-8:]
-                encrypted_pdu = net_pdu[7:-8]
-                transport_pdu += self._decrypt(encrypted_pdu)
-                calc_net_mic = transport_pdu[-8:]
+            net_mic = net_pdu[-8:] if self.hard_ctx.is_crtl_msg else \
+                net_pdu[-4:]
+            encrypted_pdu = net_pdu[7:]
+            decrypted_pdu, calc_net_mic = self._decrypt(encrypted_pdu)
 
             if net_mic != calc_net_mic:
                 self.log.debug(f'NetMIC wrong. Receive "{net_mic}" and '
                                f'calculated "{calc_net_mic}"')
                 continue
 
-            soft_ctx = self._fill_soft_ctx(transport_pdu)
+            soft_ctx = SoftContext()
+            soft_ctx.src_addr = clean_pdu[-2:]
+            soft_ctx.dst_addr = decrypted_pdu[0:2]
+            soft_ctx.network_name = net_data.name
 
+            transport_pdu = decrypted_pdu[2:]
             await self.transport_pdus.put((transport_pdu, soft_ctx))
