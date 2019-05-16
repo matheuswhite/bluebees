@@ -7,17 +7,17 @@ branches:
 
 matrix:
   include:
-    - name: "Python 3.7.1 on Xenial Linux"
+    - name: "Python 3.7 on Xenial Linux"
       python: 3.7
       dist: xenial
-    - name: "Python 3.7.2 on macOS"
+    - name: "Python 3.7 on macOS"
       os: osx
       osx_image: xcode10.2
       language: shell
-    - name: "Python 3.7.3 on Windows"
+    - name: "Python 3.7 on Windows"
       os: windows
       language: shell
       before_install: choco install python
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 install: pip3 install -r requirements.txt
-script: python3 -m pytest tests/ || python -m pytest tests\
+script: python3 -m pytest tests/ || python -m pytest tests
