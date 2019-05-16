@@ -3,6 +3,7 @@ from client.network.network_data import NetworkData
 from client.data_paths import base_dir, app_dir, net_dir
 from common.logging import log_sys, INFO
 from common.crypto import crypto
+from common.file import file_helper
 import asyncio
 
 
@@ -94,8 +95,21 @@ class NetworkLayer:
         await self.send_queue.put((b'message_s', network_pdu))
 
     # receive methods
-    def _clean_message(self, net_pdu: bytes) -> bytes:
-        pass
+    def __search_network_by_nid(self, nid: int) -> str:
+        filenames = file_helper.list_files(base_dir + net_dir)
+
+        for f in filenames:
+            net_data = NetworkData.load(base_dir + net_dir + f)
+            net_nid, _, _ = self._gen_security_material(net_data)
+            if net_nid == nid:
+                return net_data.name
+
+        return None
+
+    def _clean_message(self, net_pdu: bytes, net_data: NetworkData) -> bytes:
+        _, _, privacy_key = self._gen_security_material(net_data)
+        privacy_random = net_pdu[7:14]
+        obsfucated_data = net_pdu[1:7]
 
     def _fill_hard_ctx(self, transport_pdu: bytes):
         pass
@@ -115,8 +129,14 @@ class NetworkLayer:
                 self.log.critical(f'Got a message from "{msg_type}" channel')
                 continue
 
+            # get network by nid
+            nid = net_pdu[0] & 0x7f
+            net_data = self.__search_network_by_nid(nid)
+            if not net_data:
+                continue
+
             # remove obsfucation
-            transport_pdu = self._clean_message(net_pdu[1:7])
+            transport_pdu = self._clean_message(net_pdu, net_data)
 
             # update seq, is_crtl_msg
             self._fill_hard_ctx(transport_pdu)
