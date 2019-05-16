@@ -104,7 +104,7 @@ class TransportLayer:
 
     def _segmented_transport_pdu(self, pdu: bytes,
                                  soft_ctx: SoftContext) -> List[bytes]:
-        self.net_layer.hard_ctx.seg_n = int((len(pdu) - 1) / LT_MTU)
+        self.net_layer.hard_ctx.seg_n = (len(pdu) - 1) // LT_MTU
         segments = []
 
         for seg_o in range(self.net_layer.hard_ctx.seg_n + 1):
