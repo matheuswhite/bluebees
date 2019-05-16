@@ -13,7 +13,7 @@ class NetworkData(Serializable):
     seq: int          # 3 bytes
     apps: List[str]
 
-    def __init__(self, name, key, key_index, iv_index, seq=0, apps=[]):
+    def __init__(self, name, key, key_index, iv_index, seq=-1, apps=[]):
         super().__init__(filename=base_dir + net_dir + name + '.yml')
 
         self.name = name

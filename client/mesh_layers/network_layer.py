@@ -21,6 +21,12 @@ class NetworkLayer:
         # (transport_pdu: bytes, soft_ctx: SoftContext)
         self.transport_pdus = asyncio.Queue()
 
+    def increment_seq(self, soft_ctx: SoftContext):
+        net_name = soft_ctx.network_name
+        net_data = NetworkData.load(base_dir + net_dir + net_name + '.yml')
+        net_data.seq += 1
+        net_data.save()
+
     # send methods
     def _gen_security_material(self,
                                net_data: NetworkData) -> (int, bytes, bytes):
@@ -67,6 +73,7 @@ class NetworkLayer:
     async def send_pdu(self, transport_pdu: bytes, soft_ctx: SoftContext):
         net_data = NetworkData.load(base_dir + net_dir + soft_ctx.network_name
                                     + '.yml')
+        self.hard_ctx.seq = net_data.seq
 
         nid, encryption_key, privacy_key = \
             self._gen_security_material(net_data)
@@ -155,6 +162,10 @@ class NetworkLayer:
 
             # update seq, is_crtl_msg
             self._fill_hard_ctx(clean_pdu)
+
+            # update seq number in net_data YAML file
+            net_data = self.hard_ctx.seq
+            net_data.save()
 
             net_mic = net_pdu[-8:] if self.hard_ctx.is_crtl_msg else \
                 net_pdu[-4:]
