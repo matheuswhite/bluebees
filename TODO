@@ -29,8 +29,8 @@ Template:
   ☐ Move the location of 'seq.yml' to '.bluebees' folder
   ☐ Add a method to increment the sequence in seq.yml, in case of success
 Mesh:
-  ☐ Implement transport layer
-  ☐ Implement network layer
+  ✔ Implement transport layer @done(19-05-16 17:59)
+  ☐ Implement network layer @started(19-05-16 17:59)
   ☐ Test mesh implementation
 Core:
   ✔ Test core performance @done(19-05-11 18:23)
