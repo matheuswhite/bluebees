@@ -25,7 +25,7 @@ Testes:
   ☐ Add a test file to network_data.py
   ☐ Add a test file to node_data.py
   ✔ Add a test file to test cryptography in prov phase @done(19-05-16 18:43)
-  ☐ Add a test file to crypto.py
+  ✔ Add a test file to crypto.py @done(19-05-16 18:49)
 Template:
   ☐ Move the location of 'seq.yml' to '.bluebees' folder
   ☐ Add a method to increment the sequence in seq.yml, in case of success
