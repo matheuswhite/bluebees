@@ -28,7 +28,8 @@ class Element(Client):
         self.log = log_sys.get_logger('element')
         self.log.set_level(INFO)
 
-        self.tr_layer = TransportLayer()
+        self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
+                                       recv_queue=self.messages_received)
 
         self.all_tasks += [self.tr_layer.net_layer.recv_pdu()]
 
@@ -43,10 +44,16 @@ class Element(Client):
             check_opcode(opcode)
             check_parameters(opcode, parameters)
 
+<<<<<<< HEAD
+            await self.tr_layer.send_pdu(opcode, ctx)
+
+            self.tr_layer.net_layer.hard_ctx.seq += 1
+=======
             pdu = opcode + parameters
             pdu = pdu[::-1]
 
             await self.tr_layer.send_pdu(pdu, ctx)
+>>>>>>> 7e6b073cc0b3ac61b4d300ff4e792714a674c4ce
         except Exception as e:
             self.log.critical(f'Unknown Exception:\n{e}')
         except OpcodeLengthError:
@@ -65,9 +72,11 @@ class Element(Client):
             self.log.warning('Ack timeout')
 
     async def _recv_message_atomic(self, opcode: bytes,
-                                   ctx: SoftContext) -> bytes:
+                                   segment_timeout: int) -> bytes:
         while True:
-            content = await self.tr_layer.recv_pdu(ctx)
+            content, _ = await self.tr_layer.recv_pdu(segment_timeout)
+            if not content:
+                continue
             op_len = opcode_len(content[0:1])
             if content[0:op_len] == opcode:
                 return content[1:]

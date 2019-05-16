@@ -13,7 +13,7 @@ class HardContext:
 
     def reset(self):
         self.ttl = 3
-        self.is_ctrl_msg = False
+        self.is_ctrl_msg = True
         self.seq_zero = 0
         self.seg_o = 0
         self.seg_n = 0
@@ -23,7 +23,7 @@ class HardContext:
 @dataclass
 class SoftContext:
     src_addr: bytes
-    dst_addr: str
+    dst_addr: bytes
     node_name: str
     network_name: str
     application_name: str
