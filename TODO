@@ -21,9 +21,9 @@ Tasks:
     ☐ Check possible spurious exceptions
   Testes:
     ✔ Add a test file to file.py @done(19-05-15 15:13)
-    ☐ Add a test file to application_data.py
-    ☐ Add a test file to network_data.py
-    ☐ Add a test file to node_data.py
+    ✔ Add a test file to application_data.py @done(19-05-16 20:01)
+    ✔ Add a test file to network_data.py @done(19-05-16 20:01)
+    ✔ Add a test file to node_data.py @done(19-05-16 20:01)
     ✔ Add a test file to test cryptography in prov phase @done(19-05-16 18:43)
     ✔ Add a test file to crypto.py @done(19-05-16 18:49)
   Template:
