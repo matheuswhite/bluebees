@@ -1,12 +1,13 @@
 from ecdsa import NIST256p
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
-from client.crypto import CRYPTO
+from common.crypto import crypto
 
 
 def product(priv, pub):
     priv = int.from_bytes(priv, 'big')
-    pub_point = Point(curve=NIST256p.curve, x=int.from_bytes(pub['x'], 'big'), y=int.from_bytes(pub['y'], 'big'))
+    pub_point = Point(curve=NIST256p.curve, x=int.from_bytes(pub['x'], 'big'),
+                      y=int.from_bytes(pub['y'], 'big'))
     pub_key = Public_key(generator=NIST256p.generator, point=pub_point)
     priv_key = Private_key(public_key=pub_key, secret_multiplier=priv)
 
@@ -14,31 +15,33 @@ def product(priv, pub):
 
 
 def aes_ccm(key, nonce, data, adata):
-    ct, mic = CRYPTO.aes_ccm_complete(key, nonce, data, adata)
+    ct, mic = crypto.aes_ccm_complete(key, nonce, data, adata)
     return ct, mic
 
 
 def aes_cmac(key: bytes, msg: bytes):
-    return CRYPTO.aes_cmac(key, msg)
+    return crypto.aes_cmac(key, msg)
 
 
 def s1(input_: bytes):
-    return CRYPTO.s1(input_)
+    return crypto.s1(input_)
 
 
 def k1(shared_secret: bytes, salt: bytes, msg: bytes):
-    return CRYPTO.k1(shared_secret, salt, msg)
+    return crypto.k1(shared_secret, salt, msg)
 
 
 def calc_confirmation_key(confirmation_inputs: bytes, ecdh_secret: bytes):
-    confirmation_salt = CRYPTO.s1(confirmation_inputs)
-    confirmation_key = CRYPTO.k1(ecdh_secret, confirmation_salt, b'prck')
+    confirmation_salt = crypto.s1(confirmation_inputs)
+    confirmation_key = crypto.k1(ecdh_secret, confirmation_salt, b'prck')
 
     return confirmation_key
 
 
-def calc_confirmation(confirmation_key: bytes, random_provisioner: bytes, auth_value: bytes):
-    confirmation_provisioner = CRYPTO.aes_cmac(confirmation_key, random_provisioner + auth_value)
+def calc_confirmation(confirmation_key: bytes, random_provisioner: bytes,
+                      auth_value: bytes):
+    confirmation_provisioner = crypto.aes_cmac(confirmation_key,
+                                               random_provisioner + auth_value)
 
     return confirmation_provisioner
 
@@ -81,8 +84,8 @@ def test_crypto():
     capabilities_pdu = b'\x01\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00'
     start_pdu = b'\x00\x00\x00\x00\x00'
     confirmation_inputs = invite_pdu + capabilities_pdu + start_pdu + \
-                            prov_pub_key['x'] + prov_pub_key['y'] + \
-                            dev_pub_key['x'] + dev_pub_key['y']
+                          prov_pub_key['x'] + prov_pub_key['y'] + \
+                          dev_pub_key['x'] + dev_pub_key['y']
 
     confirmation_salt = b'\x5f\xaa\xbe\x18\x73\x37\xc7\x1c\xc6\xc9\x73\x36\x9d\xca\xa7\x9a'
     ecdh_secret = b'\xab\x85\x84\x3a\x2f\x6d\x88\x3f\x62\xe5\x68\x4b\x38\xe3\x07\x33\x5f\xe6\xe1\x94\x5e\xcd\x19\x60\x41\x05\xc6\xf2\x32\x21\xeb\x69'
@@ -112,13 +115,17 @@ def test_crypto():
     unicast_address = b'\x0b\x0c'
 
     provisioning_salt = s1(provisioning_inputs)
-    provisioning_data = network_key + key_index + flags + iv_index + unicast_address
+    provisioning_data = network_key + key_index + flags + iv_index + \
+        unicast_address
 
     session_key = k1(ecdh_secret, provisioning_salt, b'prsk')
     session_nonce = k1(ecdh_secret, provisioning_salt, b'prsn')
     session_nonce = session_nonce[3:]
 
-    encrypted_provisioning_data, provisioning_data_mic = aes_ccm(session_key, session_nonce, provisioning_data, b'')
+    encrypted_provisioning_data, provisioning_data_mic = aes_ccm(session_key,
+                                                                 session_nonce,
+                                                                 provisioning_data,
+                                                                 b'')
 
     expected_provisioning_salt = b'\xa2\x1c\x7d\x45\xf2\x01\xcf\x94\x89\xa2\xfb\x57\x14\x50\x15\xb4'
     expected_session_key = b'\xc8\x02\x53\xaf\x86\xb3\x3d\xfa\x45\x0b\xbd\xb2\xa1\x91\xfe\xa3'

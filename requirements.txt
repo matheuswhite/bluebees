@@ -7,3 +7,5 @@ ruamel.yaml==0.15.94
 pyzmq==18.0.1
 asyncserial==0.1.0
 pytest==4.5.0
+codecov==2.0.15
+pytest-cov==2.7.1

@@ -20,4 +20,6 @@ matrix:
       before_install: choco install python
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 install: pip3 install -r requirements.txt
-script: python3 -m pytest tests/ || python -m pytest tests
+script: python3 -m pytest --cov tests/ || python -m pytest --cov tests
+after_success: codecov
+env: CODECOV_TOKEN="b4f85c60-a2b7-41e5-a771-d36f94d94316"

@@ -40,7 +40,7 @@ class NetworkLayer:
 
         nid, encryption_key, privacy_key = \
             self._gen_security_material(net_data)
-        
+
         net_pdu = b''
         net_pdu += (int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7) | nid)
         ivi = (int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7 | nid
