@@ -1,6 +1,5 @@
 from common.client import Client
 from dataclasses import dataclass
-from clint.textui import colored
 from common.utils import order, crc8
 from asyncio import wait_for
 from ecdsa import NIST256p, SigningKey
@@ -8,7 +7,7 @@ from ecdsa.ellipticcurve import Point
 from common.crypto import crypto
 from Crypto.Random import get_random_bytes
 from typing import List
-from common.logging import log_sys, INFO
+from common.logging import log_sys, INFO, DEBUG
 import asyncio
 
 
@@ -82,7 +81,10 @@ class Provisioner(Client):
         super().__init__(sub_topic_list=[b'prov'], pub_topic_list=[b'prov_s'])
 
         self.log = log_sys.get_logger('provisioner')
-        self.log.set_level(INFO)
+        if debug:
+            self.log.set_level(DEBUG)
+        else:
+            self.log.set_level(INFO)
 
         self.adv_mtu = 24
         self.start_pdu = 0
@@ -122,9 +124,21 @@ class Provisioner(Client):
 
         self.prov_ctx.random_provisioner = get_random_bytes(16)
 
+        self.devkey = None
+
         self.all_tasks += [self._provisioning_device()]
 
     # link method
+    def __close_reason(self, reason: bytes) -> str:
+        if reason == b'\x00':
+            return 'success'
+        elif reason == b'\x01':
+            return 'timeout'
+        elif reason == b'\x02':
+            return 'fail'
+        else:
+            return 'unknown'
+
     async def _open_link(self):
         msg_type = b'prov_s'
         content = self.prov_ctx.device_link
@@ -187,6 +201,14 @@ class Provisioner(Client):
 
             expected_tr_number = self.prov_ctx.client_tr_number.to_bytes(1,
                                                                          'big')
+
+            if msg_type == b'prov' and \
+               content[0:4] == self.prov_ctx.device_link and \
+               content[5:6] == b'\x0b' and content[6:7] != b'\x00':
+                self.log.error(f'The device close link. Reason: '
+                               f'{self.__close_reason(content[6:7])}')
+                raise ProvisioningError
+
             if msg_type == b'prov' and \
                content[0:4] == self.prov_ctx.device_link and \
                content[4:5] == expected_tr_number and content[5:6] == b'\x01':
@@ -285,6 +307,12 @@ class Provisioner(Client):
 
             if msg_type != b'prov':
                 continue
+
+            if content[0:4] == self.prov_ctx.device_link and \
+               content[5:6] == b'\x0b' and content[6:7] != b'\x00':
+                self.log.error(f'The device close link. Reason: '
+                               f'{self.__close_reason(content[6:7])}')
+                raise ProvisioningError
 
             pdu = self.__remount_recv_pdu(content)
 
@@ -434,6 +462,9 @@ class Provisioner(Client):
                                                            nonce=session_nonce,
                                                            text=prov_data,
                                                            adata=b'')
+
+        self.devkey = crypto.k1(n=self.prov_ctx.ecdh_secret, salt=prov_salt,
+                                p=b'prdk')[0:16]
 
         content = b'\x07'
         content += encrypted_data

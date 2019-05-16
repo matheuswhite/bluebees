@@ -31,8 +31,10 @@ class Client:
             self.sub_sock.setsockopt(zmq.SUBSCRIBE, st)
 
         self.loop = None
+        self.tasks_h = None
         self.is_connected = False
-        self.all_tasks = [self._subscribe_task(), self._publish_task()]
+        self.client_tasks = [self._subscribe_task(), self._publish_task()]
+        self.all_tasks = []
 
     async def connect_to_broker(self):
         pub_topics = b' '.join(self.pub_topic_list)
@@ -85,4 +87,5 @@ class Client:
         await self.connect_to_broker()
         self.client_log.success('Connected to broker')
 
-        asyncio.gather(*self.all_tasks)
+        asyncio.gather(*self.client_tasks)
+        self.tasks_h = asyncio.gather(*self.all_tasks)

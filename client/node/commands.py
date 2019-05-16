@@ -98,7 +98,7 @@ Flags:
 
     def _parse_template(self, filename) -> dict:
         opts = {'name': None, 'net': None, 'uuid': None, 'addr': None,
-                'no_file': False}
+                'no_file': False, 'debug': False}
 
         template = file_helper.read(filename)
         if not template:
@@ -121,6 +121,11 @@ Flags:
             opts['uuid'] = None
 
         try:
+            opts['debug'] = template_helper.get_field(template, 'debug')
+        except Exception:
+            opts['debug'] = None
+
+        try:
             opts['addr'] = template_helper.get_field(template, 'address')
             if len(opts['addr']) != 4:
                 opts['addr'] = opts['addr']
@@ -130,39 +135,45 @@ Flags:
         return opts
 
     def _provisioning_device(self, device_uuid: bytes, network: str,
-                             addr: bytes):
+                             addr: bytes, debug: bool):
         print(colored.cyan(f'Provisioning device "{device_uuid}" to network '
                            f'"{network}"'))
         success = False
+        devkey = None
         net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
 
         try:
             loop = asyncio.get_event_loop()
             prov = Provisioner(loop, device_uuid, net_data.key,
-                               net_data.key_index, net_data.iv_index, addr)
+                               net_data.key_index, net_data.iv_index, addr,
+                               debug=debug)
             asyncio.gather(prov.spwan_tasks(loop))
             loop.run_forever()
         except Exception as e:
             print(f'Unknown error\n{e}')
         except LinkOpenError:
-            prov.disconnect()
+            pass
         except ProvisioningError:
-            prov.disconnect()
+            pass
         except ProvisioningSuccess:
+            devkey = prov.devkey
             success = True
-            prov.disconnect()
         except KeyboardInterrupt:
             print(colored.yellow('Interruption by user'))
-            prov.disconnect()
+            if prov and prov.tasks_h:
+                prov.tasks_h.cancel()
+                close_task = asyncio.gather(prov.close_link(b'\x02'))
+                loop.run_until_complete(close_task)
         except RuntimeError:
             print('Runtime error')
         finally:
+            prov.disconnect()
             tasks_running = asyncio.Task.all_tasks()
             for t in tasks_running:
                 t.cancel()
             loop.stop()
 
-        return success
+        return success, devkey
 
     def digest(self, flags, flags_values):
         opts = {'name': None, 'net': None, 'uuid': None, 'addr': None}
@@ -262,15 +273,16 @@ Flags:
                 return
 
         # provisioning device
-        success = self._provisioning_device(opts['uuid'], opts['net'],
-                                            opts['addr'])
+        success, devkey = self._provisioning_device(opts['uuid'], opts['net'],
+                                                    opts['addr'],
+                                                    opts['debug'])
         if not success:
             print(colored.red(f'Error in provisioning'))
             return
 
         node_data = NodeData(name=opts['name'], addr=opts['addr'],
                              network=opts['net'], device_uuid=opts['uuid'],
-                             ecdh_secret=bytes(32))
+                             devkey=devkey)
         node_data.save()
 
         print(colored.green('A new node was created.'))
