@@ -4,7 +4,8 @@ from client.node.node_data import NodeData
 from client.network.network_data import NetworkData
 from common.file import file_helper
 from common.template import template_helper
-from common.utils import FinishAsync
+from client.mesh_layers.mesh_context import SoftContext
+from client.mesh_layers.element import Element
 from random import randint
 from client.node.provisioner import Provisioner, LinkOpenError, \
                                     ProvisioningSuccess, ProvisioningError
@@ -418,11 +419,46 @@ Flags:
         except ValueError:
             return None
 
-    # ! Fake implementation
     def _send_message(self, target_node: str, opcode: bytes,
                       parameters: bytes):
-        print(colored.green(f'Message [{opcode}, {parameters}] was sent to '
+        print(colored.green(f'Sending message [{opcode}, {parameters}] to '
                             f'"{target_node}" node'))
+        node_data = NodeData.load(base_dir + node_dir + target_node + '.yml')
+
+        try:
+            loop = asyncio.get_event_loop()
+            client_element = Element()
+            if not node_data.apps:
+                app_name = ''
+                is_devkey = True
+            else:
+                app_name = node_data.apps[0]
+                is_devkey = False
+            context = SoftContext(src_addr=b'\x00\x01',
+                                  dst_addr=node_data.addr,
+                                  node_name=node_data.name,
+                                  network_name=node_data.network,
+                                  application_name=app_name,
+                                  is_devkey=is_devkey,
+                                  ack_timeout=30,
+                                  segment_timeout=10)
+
+            asyncio.gather(client_element.spwan_tasks(loop))
+            send_task = asyncio.gather(client_element.send_message(
+                opcode=opcode, parameters=parameters, ctx=context))
+            loop.run_until_complete(send_task)
+        except Exception as e:
+            print(f'Unknown error\n{e}')
+        except KeyboardInterrupt:
+            print(colored.yellow('Interruption by user'))
+        except RuntimeError:
+            print('Runtime error')
+        finally:
+            client_element.disconnect()
+            tasks_running = asyncio.Task.all_tasks()
+            for t in tasks_running:
+                t.cancel()
+            loop.stop()
 
     def digest(self, flags, flags_values):
         target = None
@@ -463,7 +499,7 @@ Flags:
         if len(opcode) not in [2, 4, 6]:
             print(colored.red(f'Invalid opcode length. The length of opcode '
                               f'must be 1, 2 or 3 bytes. The current length '
-                              f'is {int(len(opcode)/2)}'))
+                              f'is {len(opcode) // 2}'))
             return
 
         opcode = self._str2bytes(opcode)
@@ -480,7 +516,7 @@ Flags:
         if len(parameters) >= 380*2:
             print(colored.red(f'Invalid parameters length. The length of '
                               f'parameters must be less than 380. The '
-                              f'current length is {int(len(parameters)/2)}'))
+                              f'current length is {len(parameters) // 2}'))
             return
 
         parameters = self._str2bytes(parameters)

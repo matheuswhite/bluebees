@@ -14,7 +14,8 @@ Tasks:
     ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
   Enhancement:
     ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
-    ☐ Change print for logger @started(19-05-12 17:26)
+    ✘ Change print for logger @started(19-05-12 17:26) @cancelled(19-05-17 09:31) @wasted(4d16h5m26s)
+    ☐ Split commands in multiples files
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
     ☐ Add 'raise exceptions' instead of 'return None'
@@ -54,6 +55,6 @@ Tasks:
     ✔ Implement send command @started(19-05-08 11:11) @done(19-05-08 11:30) @lasted(19m4s)
     ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
     ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
-    ☐ Implement the real send command
+    ✔ Implement the real send command @done(19-05-17 13:14)
     ☐ Implement the real req command
     ☐ Implement the real config command
