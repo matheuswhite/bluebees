@@ -155,11 +155,15 @@ class TransportLayer:
                                                             soft_ctx)
             self.net_layer.hard_ctx.is_crtl_msg = False
 
+            self.net_layer.increment_seq()
+
             await self.net_layer.send_pdu(transport_pdu, soft_ctx)
         else:
             segments = self._segmented_transport_pdu(crypt_access_pdu,
                                                      soft_ctx)
             self.net_layer.hard_ctx.is_crtl_msg = False
+
+            self.net_layer.increment_seq()
 
             for seg in segments:
                 await self.net_layer.send_pdu(seg, soft_ctx)

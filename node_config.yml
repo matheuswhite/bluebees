@@ -2,12 +2,15 @@ applications:
   - ayna-app0
   - ayna-app1
 models:
-  - publish: 0023
-    subscribe: 0022
+  - index: 1
+    publish: '0023'
+    subscribe: '0022'
     application: ayna-app0
-  - publish: 0035
-    subscribe: 0024
+  - index: 2
+    publish: '0035'
+    subscribe: '0024'
     application: ayna-app0
-  - publish: 0015
-    subscribe: 0022
+  - index: 3
+    publish: '0015'
+    subscribe: '0022'
     application: ayna-app0

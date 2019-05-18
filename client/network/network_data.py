@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from common.serializable import Serializable
 from typing import List
 from client.data_paths import base_dir, net_dir
+from common.file import file_helper
 
 
 @dataclass
@@ -13,7 +14,7 @@ class NetworkData(Serializable):
     seq: int          # 3 bytes
     apps: List[str]
 
-    def __init__(self, name, key, key_index, iv_index, seq=0, apps=[]):
+    def __init__(self, name, key, key_index, iv_index, seq=-1, apps=[]):
         super().__init__(filename=base_dir + net_dir + name + '.yml')
 
         self.name = name
@@ -26,4 +27,42 @@ class NetworkData(Serializable):
     def __repr__(self):
         return f'Name: {self.name}\nKey: {self.key}\n' \
                f'Key Index: {self.key_index}\nIV Index: {self.iv_index}\n' \
-               f'Seq number: {self.seq}\nApplications: {self.apps}'
+               f'Seq number: {0 if self.seq == -1 else self.seq}\n' \
+               f'Applications: {self.apps}'
+
+
+def net_name_list() -> list:
+    filenames = file_helper.list_files(base_dir + net_dir)
+    if not filenames:
+        return False
+
+    # remove file extension
+    filenames_fmt = []
+    for file in filenames:
+        filenames_fmt.append(file[:-4])
+
+    return filenames_fmt
+
+
+def net_key_list() -> list:
+    filenames = file_helper.list_files(base_dir + net_dir)
+    if not filenames:
+        return []
+
+    netkeys = []
+    for file in filenames:
+        net = NetworkData.load(base_dir + net_dir + file)
+        netkeys.append(net.key)
+    return netkeys
+
+
+def net_key_index_list() -> list:
+    filenames = file_helper.list_files(base_dir + net_dir)
+    if not filenames:
+        return []
+
+    net_key_indexes = []
+    for file in filenames:
+        net = NetworkData.load(base_dir + net_dir + file)
+        net_key_indexes.append(net.key_index)
+    return net_key_indexes
