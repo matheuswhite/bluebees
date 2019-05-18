@@ -5,6 +5,7 @@ from client.application.application_data import ApplicationData, \
 from client.network.network_data import net_name_list
 from common.file import file_helper
 from common.template import template_helper
+from common.utils import check_hex_string
 import click
 
 
@@ -28,8 +29,10 @@ def validate_key(ctx, param, value):
     if not value:
         raise click.BadParameter('The maximum number of application was '
                                  'reached')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on key hex string')
     if len(value) % 2 == 1:
-        value = '0' + value
+        value = value + '0'
     return value
 
 

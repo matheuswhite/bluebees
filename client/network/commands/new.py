@@ -3,6 +3,7 @@ from client.network.network_data import NetworkData, net_name_list, \
                                         net_key_list, net_key_index_list
 from common.file import file_helper
 from common.template import template_helper
+from common.utils import check_hex_string
 import click
 
 
@@ -17,8 +18,10 @@ def validate_name(ctx, param, value):
 def validate_key(ctx, param, value):
     if not value:
         raise click.BadParameter('The maximum number of network was reached')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on key hex string')
     if len(value) % 2 == 1:
-        value = '0' + value
+        value = value + '0'
     return value
 
 

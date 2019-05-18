@@ -12,7 +12,7 @@ Tasks:
     ✔ Save seq number on each change @started(19-05-16 19:07) @done(19-05-16 19:42) @lasted(35m21s)
     ✔ Send a close link on keyboard interrupt @started(19-05-15 11:04) @done(19-05-15 11:28) @lasted(24m40s)
     ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
-    ☐ Check if hex string has some invalid character @started(19-05-18 19:28)
+    ✔ Check if hex string has some invalid character @started(19-05-18 19:28) @done(19-05-18 19:42) @lasted(14m8s)
   Enhancement:
     ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
     ✘ Change print for logger @started(19-05-12 17:26) @cancelled(19-05-17 09:31) @wasted(4d16h5m26s)

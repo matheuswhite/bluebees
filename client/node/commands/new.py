@@ -6,6 +6,7 @@ from client.node.provisioner import Provisioner, LinkOpenError, \
                                     ProvisioningSuccess, ProvisioningError
 from common.file import file_helper
 from common.template import template_helper
+from common.utils import check_hex_string
 import click
 import asyncio
 
@@ -29,8 +30,10 @@ def validate_network(ctx, param, value):
 def validate_uuid(ctx, param, value):
     if not value:
         raise click.BadParameter('This option is required')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on uuid hex string')
     if len(value) % 2 == 1:
-        value = '0' + value
+        value = value + '0'
     return value
 
 
@@ -38,6 +41,8 @@ def validate_addr(ctx, param, value):
     if not value:
         raise click.BadParameter('The maximum number of nodes was '
                                  'reached')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on address hex string')
     if len(value) != 4:
         raise click.BadParameter('The length of node address is 2 bytes')
     return value

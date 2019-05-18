@@ -2,6 +2,7 @@ from client.node.node_data import NodeData, node_name_list
 from client.data_paths import base_dir, node_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
+from common.utils import check_hex_string
 import click
 import asyncio
 
@@ -17,6 +18,8 @@ def validate_target(ctx, param, value):
 def validate_opcode(ctx, param, value):
     if not value:
         raise click.BadParameter('This option is required')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on opcode hex string')
     if len(value) not in [2, 4, 6]:
         raise click.BadParameter('The length of opcode must be 1, 2 or 3 '
                                  'bytes')
@@ -26,9 +29,13 @@ def validate_opcode(ctx, param, value):
 def validate_parameters(ctx, param, value):
     if not value:
         raise click.BadParameter('This option is required')
+    if not check_hex_string(value):
+        raise click.BadParameter('Bad formatting on parameters hex string')
     if len(value) > (380 * 2):
         raise click.BadParameter('The length of parameter must be less than '
                                  '380 bytes')
+    if len(value) % 2 == 1:
+        value = value + '0'
     return value
 
 
