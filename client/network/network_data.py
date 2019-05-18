@@ -64,5 +64,5 @@ def net_key_index_list() -> list:
     net_key_indexes = []
     for file in filenames:
         net = NetworkData.load(base_dir + net_dir + file)
-        net_key_indexes.append(net.key)
+        net_key_indexes.append(net.key_index)
     return net_key_indexes

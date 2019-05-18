@@ -1,5 +1,8 @@
 import click
+from client.core.core import core
 from client.network.network import net
+from client.application.application import app
+from client.node.node import node
 
 
 @click.group()
@@ -47,12 +50,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.''')
 
 
+cli.add_command(core)
 cli.add_command(net)
+cli.add_command(app)
+cli.add_command(node)
 
 if __name__ == "__main__":
     cli()
-
-#   core\t\tThe module that run main features
-#   net \t\tThe module about mesh network feature
-#   app \t\tThe module about mesh application feature
-#   node\t\tThe module about mesh node features

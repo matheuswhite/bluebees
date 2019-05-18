@@ -56,5 +56,11 @@ Tasks:
     ✔ Implement req command @started(19-05-08 11:30) @done(19-05-08 11:43) @lasted(13m20s)
     ✔ Implement config command @started(19-05-08 11:43) @done(19-05-08 12:25) @lasted(42m31s)
     ✔ Implement the real send command @done(19-05-17 13:14)
+    ☐ Test the new implementation of new command
+    ☐ Test the new implementation of list command
+    ☐ Test the new implementation of info command
+    ☐ Test the new implementation of send command
+    ☐ Test the new implementation of req command
+    ☐ Test the new implementation of config command
     ☐ Implement the real req command
     ☐ Implement the real config command

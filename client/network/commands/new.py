@@ -60,13 +60,15 @@ def parse_template(ctx, param, value):
 
     try:
         name = template_helper.get_field(template, 'name')
-    except Exception:
+        validate_name(ctx, param, name)
+    except KeyError:
         raise click.BadParameter(f'Field "name" not found in template file '
                                  f'"{value}"')
 
     try:
         key = template_helper.get_field(template, 'key')
-    except Exception:
+        validate_key(ctx, param, key)
+    except KeyError:
         key = random_key()
 
     key_index = random_key_index()
@@ -75,7 +77,7 @@ def parse_template(ctx, param, value):
     if len(key) < 32:
         key = bytes.fromhex(key) + bytes((32 - len(key)) // 2)
     elif len(key) > 32:
-        key = bytes.fromhex(key)[0:32]
+        key = bytes.fromhex(key)[0:16]
     else:
         key = bytes.fromhex(key)
 
@@ -107,7 +109,7 @@ def new(name, key, template):
     if len(key) < 32:
         key = bytes.fromhex(key) + bytes((32 - len(key)) // 2)
     elif len(key) > 32:
-        key = bytes.fromhex(key)[0:32]
+        key = bytes.fromhex(key)[0:16]
     else:
         key = bytes.fromhex(key)
 
