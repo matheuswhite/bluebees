@@ -1,120 +1,122 @@
-from common.command import Command
-from clint.textui import colored
-from client.node.node_data import NodeData
-from client.network.network_data import NetworkData
+from client.node.node_data import node_name_list
+from client.application.application_data import app_name_list
 from common.file import file_helper
 from common.template import template_helper
-from client.mesh_layers.mesh_context import SoftContext
-from client.mesh_layers.element import Element
-from random import randint
-from client.node.provisioner import Provisioner, LinkOpenError, \
-                                    ProvisioningSuccess, ProvisioningError
-from client.data_paths import base_dir, node_dir, net_dir
+from common.utils import check_hex_string, order
+from tqdm import tqdm
+import click
 import asyncio
 
 
-class ConfigCommand(Command):
+def validate_name(ctx, param, value):
+    if not value:
+        raise click.BadParameter('This option is required')
+    if not node_name_list() or value not in node_name_list():
+        raise click.BadParameter(f'The "{value}" node not exist')
+    return value
 
-    def __init__(self):
-        super().__init__()
-        self._help = '''Usage:
-  python bluebees.py node config <-n|--name> <-c|--config> [FLAGS]...
 
-Flags:
-  -n, --name  \tSpecify the name of node. This flag is mandatory
-  -c, --config\tSpecify the config file. This config file must contain the keywords:
-              \t  * applications (A list of applications to bind to node)
-              \t  * models       (A list of models options)
-              \t    - index       (The index of model in that node)
-              \t    - publish     (The publish address of model)
-              \t    - subscribe   (The subscribe address of model)
-              \t    - application (The application to bind to model)
-              \tThis flag is mandatory
-  -h, --help  \tShow the help message'''
+def validate_app(value):
+    if not app_name_list() or value not in app_name_list():
+        raise click.BadParameter(f'The "{value}" application not exist')
 
-    def _node_name_exist(self, name: str) -> bool:
-        filenames = file_helper.list_files(base_dir + node_dir)
-        if not filenames:
-            return False
 
-        # remove file extension
-        filenames_fmt = []
-        for file in filenames:
-            filenames_fmt.append(file[:-4])
+def validate_model(value):
+    try:
+        index = value['index']
+        index_order = str(index) + order(index)
 
-        return name in filenames_fmt
+        if type(index) != int:
+            raise click.BadParameter('The index value must be a integer')
+    except KeyError:
+        raise click.BadParameter('index keyword not found')
 
-    def _parse_config(self, config_file: str) -> dict:
+    try:
+        if type(value['publish']) != str:
+            raise click.BadParameter(f'On {index_order} model, the publish '
+                                     f'value must be a hex string')
+        elif not check_hex_string(value['publish']):
+            raise click.BadParameter(f'On {index_order} model, bad formatting'
+                                     f' of hex string, on publish value')
+        elif len(value['publish']) != 4:
+            raise click.BadParameter(f'On {index_order} model, the publish '
+                                     f'value length must be 2 bytes')
+    except KeyError:
+        pass
+
+    try:
+        if type(value['subscribe']) != str:
+            raise click.BadParameter(f'On {index_order} model, the subscribe '
+                                     f'value must be a hex string')
+        elif not check_hex_string(value['subscribe']):
+            raise click.BadParameter(f'On {index_order} model, bad formatting'
+                                     f' of hex string, on subscribe value'
+                                     f' model')
+        elif len(value['subscribe']) != 4:
+            raise click.BadParameter(f'On {index_order} model, the subscribe'
+                                     f' value length must be 2 bytes')
+    except KeyError:
+        pass
+
+    try:
+        if not app_name_list() or \
+           value['application'] not in app_name_list():
+            raise click.BadParameter(f'On {index_order} model, the '
+                                     f'"{value["application"]}" application '
+                                     f'not exist')
+    except KeyError:
+        raise click.BadParameter('application keyword not found')
+
+
+def parse_config(ctx, param, value):
+    if not value:
+        raise click.BadParameter('This option is required')
+    else:
         cfg = {'applications': [], 'models': []}
 
-        template = file_helper.read(config_file)
+        template = file_helper.read(value)
         if not template:
-            return {}
+            raise click.BadParameter(f'File "{value}" not found')
 
         try:
             cfg['applications'] = template_helper.get_field(template,
                                                             'applications')
-        except Exception:
+            for app in cfg['applications']:
+                validate_app(app)
+        except KeyError:
             cfg['applications'] = []
 
         try:
             cfg['models'] = template_helper.get_field(template, 'models')
-        except Exception:
+            for model in cfg['models']:
+                validate_model(model)
+        except KeyError:
             cfg['models'] = []
 
         return cfg
 
-    # ! Fake implementation
-    async def _config_node(self, name: str, config: dict):
-        # TODO: check if application exist
 
-        print(colored.green(f'Configuration sent to "{name}" node'))
-        print(colored.cyan(f'Check configuration in "{name}" node...'))
+# ! Fake implementation
+async def config_node(name: str, config: dict):
+    click.echo(click.style(f'Configuration sent to "{name}" node', fg='green'))
+    click.echo(click.style(f'Check configuration in "{name}" node...',
+                           fg='cyan'))
 
-        total_len = len(config['applications']) + len(config['models'])
-        for x in range(total_len):
-            print(colored.cyan(f'Config {x+1}/{total_len} is OK'))
-            await asyncio.sleep(1)
+    total_len = len(config['applications']) + len(config['models'])
+    for x in tqdm(range(total_len)):
+        await asyncio.sleep(1)
 
-        print(colored.green(f'Configuration done!'))
+    click.echo(click.style(f'Configuration done!', fg='green'))
 
-    def digest(self, flags, flags_values):
-        name = None
-        config = None
 
-        for x in range(len(flags)):
-            f = flags[x]
-            fv = flags_values[x]
-            if f == '-h' or f == '--help':
-                print(self._help)
-                return
-            if f == '-n' or f == '--name':
-                name = fv
-            elif f == '-c' or f == '--config':
-                config = fv
-            else:
-                print(colored.red(f'Invalid flag {f}'))
-                print(self._help)
-                return
+@click.command()
+@click.option('--name', '-n', type=str, default='', required=True,
+              help='Specify the name of node', callback=validate_name)
+@click.option('--config', '-c', type=str, default='', required=True,
+              help='Specify a YAML config file. A file example is shown in'
+                   ' node_config.yml', callback=parse_config)
+def config(name, config):
+    '''Set the node configuration'''
 
-        # name processing
-        if name is None:
-            print(colored.red('Node name is required'))
-            return
-
-        if not self._node_name_exist(name):
-            print(colored.red('This node not exist'))
-            return
-
-        # config processing
-        if config is None:
-            print(colored.red('Config file is required'))
-            return
-
-        config = self._parse_config(config)
-        if not config:
-            print(colored.yellow('Nothing to configure. Abort command'))
-            return
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self._config_node(name, config))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(config_node(name, config))

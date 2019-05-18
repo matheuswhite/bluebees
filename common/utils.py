@@ -2,6 +2,13 @@ def check_flag(flag, flag_set):
     return flag[0] in flag_set or flag[1] in flag_set
 
 
+def check_hex_string(hex_str: str) -> bool:
+    for c in hex_str:
+        if c not in '0123456789abcdefABCDEF':
+            return False
+    return True
+
+
 def find_key(obj_dict: dict, key: str):
     for k in obj_dict.keys():
         if k == key:
