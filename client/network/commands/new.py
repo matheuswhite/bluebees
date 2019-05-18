@@ -91,7 +91,7 @@ def parse_template(ctx, param, value):
 
 
 @click.command()
-@click.option('--name', '-n', type=str, default='',
+@click.option('--name', '-n', type=str, default='', required=True,
               help='Specify the name of network', callback=validate_name)
 @click.option('--key', '-k', type=str, default=random_key(),
               help='Specify the key of network', callback=validate_key)
