@@ -7,8 +7,8 @@ import asyncio
 def validate_target(ctx, param, value):
     if not value:
         raise click.BadParameter('This option is required')
-    if not node_name_list() or value not in node_name_list():
-        raise click.BadParameter(f'The "{value}" node not exist')
+    # if not node_name_list() or value not in node_name_list():
+    #     raise click.BadParameter(f'The "{value}" node not exist')
     return value
 
 
@@ -37,7 +37,7 @@ def validate_parameters(ctx, param, value):
 
 
 # ! Fake implementation
-async def request_message(self, target_node: str, opcode: bytes,
+async def request_message(target_node: str, opcode: bytes,
                           parameters: bytes):
     click.echo(click.style(f'Message [{opcode}, {parameters}] was sent to '
                            f'"{target_node}" node', fg='green'))

@@ -61,7 +61,7 @@ Tasks:
     ☐ Test the new implementation of list command
     ☐ Test the new implementation of info command
     ☐ Test the new implementation of send command
-    ☐ Test the new implementation of req command
-    ☐ Test the new implementation of config command
+    ✔ Test the new implementation of req command @done(19-05-18 19:47)
+    ✔ Test the new implementation of config command @done(19-05-18 19:45)
     ☐ Implement the real req command
     ☐ Implement the real config command
