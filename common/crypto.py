@@ -23,8 +23,8 @@ class Crypto:
         cyphertext, tag = cypher.encrypt_and_digest(text + adata)
         return cyphertext[0:13]
 
-    def aes_ccm_complete(self, key: bytes, nonce: bytes, text: bytes, adata: bytes):
-        cypher = AES.new(key=key, mode=AES.MODE_CCM, nonce=nonce, mac_len=8, assoc_len=len(adata), msg_len=len(text))
+    def aes_ccm_complete(self, key: bytes, nonce: bytes, text: bytes, adata: bytes, mic_size=8):
+        cypher = AES.new(key=key, mode=AES.MODE_CCM, nonce=nonce, mac_len=mic_size, assoc_len=len(adata), msg_len=len(text))
         cyphertext, tag = cypher.encrypt_and_digest(text + adata)
         return cyphertext, tag
 

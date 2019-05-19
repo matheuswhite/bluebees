@@ -135,6 +135,8 @@ def parse_template(ctx, param, value):
     except KeyError:
         address = random_addr()
 
+    address = bytes.fromhex(address)
+
     if len(uuid) < 32:
         uuid = bytes.fromhex(uuid) + bytes((32 - len(uuid)) // 2)
     elif len(uuid) > 32:
@@ -180,6 +182,8 @@ def new(name, network, address, uuid, template):
         uuid = bytes.fromhex(uuid)[0:16]
     else:
         uuid = bytes.fromhex(uuid)
+
+    address = bytes.fromhex(address)
 
     # provisioning device
     success, devkey = provisioning_device(uuid, network, address, False)

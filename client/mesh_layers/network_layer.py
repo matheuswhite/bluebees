@@ -10,7 +10,8 @@ import asyncio
 class NetworkLayer:
 
     def __init__(self, send_queue, recv_queue):
-        self.hard_ctx = HardContext()
+        self.hard_ctx = HardContext(seq=0, ttl=3, is_ctrl_msg=True,
+                                    seq_zero=0, seg_o=0, seg_n=0, szmic=0)
         self.hard_ctx.reset()
         self.send_queue = send_queue
         self.recv_queue = recv_queue
@@ -31,29 +32,26 @@ class NetworkLayer:
     def _gen_security_material(self,
                                net_data: NetworkData) -> (int, bytes, bytes):
         materials = crypto.k2(n=net_data.key, p=b'\x00')
-        nid = (materials & (0x7f << 32)) >> 32
-        encryption_key = (materials & (0xFFFF_FFFF_FFFF_FFFF << 16)) >> 16
-        privacy_key = materials & 0xFFFF_FFFF_FFFF_FFFF
-        return nid, encryption_key.to_bytes(16, 'big'), \
-            privacy_key.to_bytes(16, 'big')
+        nid = materials[0] & 0x7f
+        encryption_key = materials[1:17]
+        privacy_key = materials[17:33]
+        # print(f'nid: {nid}, enc_key: {encryption_key.hex()}, priv_key: {privacy_key.hex()}')
+        return nid, encryption_key, privacy_key
 
     def _encrypt(self, soft_ctx: SoftContext, transport_pdu: bytes,
                  encryption_key: bytes,
                  net_nonce: bytes) -> (bytes, bytes, bytes):
-        aes_ccm_result = crypto.aes_ccm(key=encryption_key, nonce=net_nonce,
+        mic_size = 8 if self.hard_ctx.is_ctrl_msg else 4
+        aes_ccm_result, mic = crypto.aes_ccm_complete(key=encryption_key, nonce=net_nonce,
                                         text=soft_ctx.dst_addr + transport_pdu,
-                                        adata=b'')
-        if self.hard_ctx.is_crtl_msg:
-            enc_dst = aes_ccm_result[0:2]
-            encrypted_data = aes_ccm_result[2:-8]
-            net_mic = aes_ccm_result[-8:]
-        else:
-            enc_dst = aes_ccm_result[0:2]
-            encrypted_data = aes_ccm_result[2:-4]
-            net_mic = aes_ccm_result[-4:]
+                                        adata=b'', mic_size=mic_size)
+        enc_dst = aes_ccm_result[0:2]
+        encrypted_data = aes_ccm_result[2:]
+        net_mic = mic
+        print(f'len pdu: {len(transport_pdu)}, data: {encrypted_data.hex()}, mic: {mic.hex()}')
         return enc_dst, encrypted_data, net_mic
 
-    def __xor(a: bytes, b: bytes):
+    def __xor(self, a: bytes, b: bytes):
         c = b''
         for x in range(len(a)):
             c += int(a[x] ^ b[x]).to_bytes(1, 'big')
@@ -62,12 +60,12 @@ class NetworkLayer:
     def _obsfucate(self, ctl: int, ttl: int, seq: int, src: bytes,
                    enc_dst: bytes, enc_transport_pdu: bytes, net_mic: bytes,
                    privacy_key: bytes, net_data: NetworkData) -> bytes:
-        privacy_random = (enc_dst + enc_transport_pdu + net_dir)[0:7]
+        privacy_random = (enc_dst + enc_transport_pdu + net_mic)[0:7]
         pecb = crypto.e(key=privacy_key, plaintext=b'\x00\x00\x00\x00\x00' +
                                                    net_data.iv_index +
                                                    privacy_random)
-        obsfucated_data = self.__xor((ctl | ttl).to_bytes(1, 'big') + seq +
-                                     src, pecb[0:6])
+        obsfucated_data = self.__xor((ctl | ttl).to_bytes(1, 'big') +
+                                     seq.to_bytes(3, 'big') + src, pecb[0:6])
         return obsfucated_data
 
     async def send_pdu(self, transport_pdu: bytes, soft_ctx: SoftContext):
@@ -84,8 +82,8 @@ class NetworkLayer:
         seq = self.hard_ctx.seq
         src = soft_ctx.src_addr
 
-        net_nonce = b'\x00' + (ctl | ttl).to_bytes(1, 'big') + seq + src + \
-            b'\x00\x00' + net_data.iv_index
+        net_nonce = b'\x00' + (ctl | ttl).to_bytes(1, 'big') + \
+            seq.to_bytes(3, 'big') + src + b'\x00\x00' + net_data.iv_index
 
         enc_dst, enc_transport_pdu, net_mic = self._encrypt(soft_ctx,
                                                             transport_pdu,
@@ -124,7 +122,7 @@ class NetworkLayer:
 
     # TODO [Enhancement] Check the seq number
     def _fill_hard_ctx(self, clean_pdu: bytes):
-        self.hard_ctx.is_crtl_msg = (clean_pdu[0] & 0x80 >> 7) == 1
+        self.hard_ctx.is_ctrl_msg = (clean_pdu[0] & 0x80 >> 7) == 1
         self.hard_ctx.seq = int.from_bytes(clean_pdu[1:4], 'big')
 
     def _decrypt(self, encrypted_pdu: bytes) -> (bytes, bytes):
@@ -133,7 +131,7 @@ class NetworkLayer:
         aes_ccm_result = crypto.aes_ccm(key=encryption_key,
                                         nonce=network_nonce,
                                         text=encrypted_pdu, adata=b'')
-        if self.hard_ctx.is_crtl_msg:
+        if self.hard_ctx.is_ctrl_msg:
             decrypted_pdu = aes_ccm_result[0:-8]
             calc_net_mic = aes_ccm_result[-8:]
         else:
@@ -160,14 +158,14 @@ class NetworkLayer:
             # remove obsfucation
             clean_pdu = self._clean_message(net_pdu, net_data)
 
-            # update seq, is_crtl_msg
+            # update seq, is_ctrl_msg
             self._fill_hard_ctx(clean_pdu)
 
             # update seq number in net_data YAML file
             net_data = self.hard_ctx.seq
             net_data.save()
 
-            net_mic = net_pdu[-8:] if self.hard_ctx.is_crtl_msg else \
+            net_mic = net_pdu[-8:] if self.hard_ctx.is_ctrl_msg else \
                 net_pdu[-4:]
             encrypted_pdu = net_pdu[7:]
             decrypted_pdu, calc_net_mic = self._decrypt(encrypted_pdu)
@@ -177,7 +175,10 @@ class NetworkLayer:
                                f'calculated "{calc_net_mic}"')
                 continue
 
-            soft_ctx = SoftContext()
+            soft_ctx = SoftContext(src_addr=b'', dst_addr=b'', node_name='',
+                                   network_name='', application_name='',
+                                   is_devkey=False, ack_timeout=0,
+                                   segment_timeout=0)
             soft_ctx.src_addr = clean_pdu[-2:]
             soft_ctx.dst_addr = decrypted_pdu[0:2]
             soft_ctx.network_name = net_data.name

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class HardContext:
     seq: int
     ttl: int
-    is_crtl_msg: bool
+    is_ctrl_msg: bool
     seq_zero: int
     seg_o: int
     seg_n: int

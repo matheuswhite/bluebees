@@ -41,16 +41,14 @@ class TransportLayer:
             app_key = app_data.key
             app_nonce = b'\x01\x00' + \
                 self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
-                soft_ctx.src_addr.to_bytes(2, 'big') + \
-                soft_ctx.dst_addr.to_bytes(2, 'big') + net_data.iv_index
+                soft_ctx.src_addr + soft_ctx.dst_addr + net_data.iv_index
         else:
             node_data = NodeData.load(base_dir + node_dir +
                                       soft_ctx.node_name + '.yml')
             app_key = node_data.devkey
             app_nonce = b'\x02\x00' + \
                 self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
-                soft_ctx.src_addr.to_bytes(2, 'big') + \
-                soft_ctx.dst_addr.to_bytes(2, 'big') + net_data.iv_index
+                soft_ctx.src_addr + soft_ctx.dst_addr + net_data.iv_index
 
         return crypto.aes_ccm(key=app_key, nonce=app_nonce, text=pdu,
                               adata=b'')
@@ -69,7 +67,7 @@ class TransportLayer:
             aid = crypto.k4(n=node_data.devkey)
             unseg_tr_pdu = 0x40
 
-        unseg_tr_pdu = (unseg_tr_pdu | (aid & 0x3f)).to_bytes(1, 'big')
+        unseg_tr_pdu = (unseg_tr_pdu | (int.from_bytes(aid, 'big') & 0x3f)).to_bytes(1, 'big')
         unseg_tr_pdu += pdu
 
         return unseg_tr_pdu
@@ -129,7 +127,7 @@ class TransportLayer:
                 continue
 
             # not control message (discard)
-            if not self.net_layer.hard_ctx.is_crtl_msg:
+            if not self.net_layer.hard_ctx.is_ctrl_msg:
                 continue
 
             # not ack pdu (discard)
@@ -153,15 +151,15 @@ class TransportLayer:
         if len(crypt_access_pdu) <= LT_MTU:
             transport_pdu = self._unsegmented_transport_pdu(crypt_access_pdu,
                                                             soft_ctx)
-            self.net_layer.hard_ctx.is_crtl_msg = False
+            self.net_layer.hard_ctx.is_ctrl_msg = False
 
-            self.net_layer.increment_seq()
+            self.net_layer.increment_seq(soft_ctx)
 
             await self.net_layer.send_pdu(transport_pdu, soft_ctx)
         else:
             segments = self._segmented_transport_pdu(crypt_access_pdu,
                                                      soft_ctx)
-            self.net_layer.hard_ctx.is_crtl_msg = False
+            self.net_layer.hard_ctx.is_ctrl_msg = False
 
             self.net_layer.increment_seq()
 
@@ -277,7 +275,7 @@ class TransportLayer:
                 ack_counter += 1
 
             # control message (discard)
-            if self.net_layer.hard_ctx.is_crtl_msg:
+            if self.net_layer.hard_ctx.is_ctrl_msg:
                 continue
 
             # unsegmented pdu (discard)
@@ -303,7 +301,7 @@ class TransportLayer:
     async def recv_pdu(self, segment_timeout: int) -> (bytes, SoftContext):
         self.net_layer.hard_ctx.reset()
 
-        while self.net_layer.hard_ctx.is_crtl_msg:
+        while self.net_layer.hard_ctx.is_ctrl_msg:
             start_pdu, soft_ctx = await self.net_layer.transport_pdus.get()
 
         # unsegmented pdu

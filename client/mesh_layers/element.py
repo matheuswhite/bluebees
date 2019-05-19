@@ -8,6 +8,7 @@ from client.mesh_layers.access_layer import check_opcode, check_parameters, \
                                             ParametersLengthError, opcode_len
 from common.logging import log_sys, INFO
 from common.client import Client
+from common.utils import FinishAsync
 import asyncio
 
 
@@ -48,8 +49,6 @@ class Element(Client):
             pdu = pdu[::-1]
 
             await self.tr_layer.send_pdu(pdu, ctx)
-        except Exception as e:
-            self.log.critical(f'Unknown Exception:\n{e}')
         except OpcodeLengthError:
             self.log.error('Opcode length wrong')
         except OpcodeReserved:
@@ -64,6 +63,9 @@ class Element(Client):
             self.log.error(f'The destination address cannot be 0x0000')
         except AckTimeout:
             self.log.warning('Ack timeout')
+        else:
+            await asyncio.sleep(1)
+            raise FinishAsync
 
     async def _recv_message_atomic(self, opcode: bytes,
                                    segment_timeout: int) -> bytes:

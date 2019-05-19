@@ -3,6 +3,7 @@ from client.data_paths import base_dir, node_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
 from common.utils import check_hex_string
+from common.utils import FinishAsync
 import click
 import asyncio
 
@@ -54,6 +55,9 @@ def send(target, opcode, parameters):
                            f'"{target}" node', fg='green'))
     node_data = NodeData.load(base_dir + node_dir + target + '.yml')
 
+    opcode = bytes.fromhex(opcode)
+    parameters = bytes.fromhex(parameters)
+
     try:
         loop = asyncio.get_event_loop()
         client_element = Element()
@@ -71,17 +75,18 @@ def send(target, opcode, parameters):
                               is_devkey=is_devkey,
                               ack_timeout=30,
                               segment_timeout=10)
-
+        client_element.all_tasks += [client_element.send_message(
+            opcode=opcode, parameters=parameters, ctx=context)]
         asyncio.gather(client_element.spwan_tasks(loop))
-        send_task = asyncio.gather(client_element.send_message(
-            opcode=opcode, parameters=parameters, ctx=context))
-        loop.run_until_complete(send_task)
-    except Exception as e:
-        click.echo(f'Unknown error\n{e}')
+        loop.run_forever()
+    except FinishAsync:
+        pass
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:
         click.echo('Runtime error')
+    except Exception as e:
+        click.echo(f'Unknown error\n[{e}]')
     finally:
         client_element.disconnect()
         tasks_running = asyncio.Task.all_tasks()
