@@ -60,15 +60,17 @@ class TransportLayer:
                                             soft_ctx.application_name +
                                             '.yml')
             aid = crypto.k4(n=app_data.key)
-            unseg_tr_pdu = 0x00
+            unseg_tr_pdu = 0x40
         else:
             node_data = NodeData.load(base_dir + node_dir +
                                       soft_ctx.node_name + '.yml')
             aid = crypto.k4(n=node_data.devkey)
-            unseg_tr_pdu = 0x40
+            unseg_tr_pdu = 0x00
 
         unseg_tr_pdu = (unseg_tr_pdu | (int.from_bytes(aid, 'big') & 0x3f)).to_bytes(1, 'big')
         unseg_tr_pdu += pdu
+
+        print(f'aid: {aid.hex()}, unseg_tr: {unseg_tr_pdu.hex()}')
 
         return unseg_tr_pdu
 
