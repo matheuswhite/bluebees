@@ -607,5 +607,7 @@ class Provisioner(Client):
                 await self.close_link(b'\x01')  # timeout
                 raise ProvisioningError
 
+            await self.close_link(b'\x00')
+
             pbar.update(1)
             raise ProvisioningSuccess

@@ -4,6 +4,7 @@ from client.network.network_data import NetworkData, net_name_list, \
 from common.file import file_helper
 from common.template import template_helper
 from common.utils import check_hex_string
+from random import randint
 import click
 
 
@@ -46,7 +47,7 @@ def random_key_index():
     key_index_list = net_key_index_list()
 
     for x in range(2**12):
-        key_index = get_random_bytes(2)
+        key_index = randint(0, 2**12).to_bytes(2, 'big')
         if key_index not in key_index_list:
             return key_index.hex()
 

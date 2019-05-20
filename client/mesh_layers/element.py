@@ -46,7 +46,7 @@ class Element(Client):
             check_parameters(opcode, parameters)
 
             pdu = opcode + parameters
-            pdu = pdu[::-1]
+            # pdu = pdu[::-1]
 
             await self.tr_layer.send_pdu(pdu, ctx)
         except OpcodeLengthError:
@@ -102,3 +102,7 @@ class Element(Client):
                              f'opcode equals to "{opcode}" was reached')
 
         return content
+
+# a2ebae
+# e4d49718000000000000000000000000
+# a2ebaee4d49718000000000000000000000000
