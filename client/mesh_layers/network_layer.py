@@ -1,7 +1,7 @@
 from client.mesh_layers.mesh_context import HardContext, SoftContext
 from client.network.network_data import NetworkData
 from client.data_paths import base_dir, net_dir
-from common.logging import log_sys, INFO
+from common.logging import log_sys, INFO, DEBUG
 from common.crypto import crypto
 from common.file import file_helper
 import asyncio
@@ -17,7 +17,7 @@ class NetworkLayer:
         self.recv_queue = recv_queue
 
         self.log = log_sys.get_logger('network_layer')
-        self.log.set_level(INFO)
+        self.log.set_level(DEBUG)
 
         # (transport_pdu: bytes, soft_ctx: SoftContext)
         self.transport_pdus = asyncio.Queue()
@@ -35,20 +35,21 @@ class NetworkLayer:
         nid = materials[0] & 0x7f
         encryption_key = materials[1:17]
         privacy_key = materials[17:33]
-        # print(f'nid: {nid}, enc_key: {encryption_key.hex()}, priv_key: {privacy_key.hex()}')
         return nid, encryption_key, privacy_key
 
     def _encrypt(self, soft_ctx: SoftContext, transport_pdu: bytes,
                  encryption_key: bytes,
                  net_nonce: bytes) -> (bytes, bytes, bytes):
         mic_size = 8 if self.hard_ctx.is_ctrl_msg else 4
-        aes_ccm_result, mic = crypto.aes_ccm_complete(key=encryption_key, nonce=net_nonce,
-                                        text=soft_ctx.dst_addr + transport_pdu,
-                                        adata=b'', mic_size=mic_size)
+        aes_ccm_result, mic = crypto.aes_ccm_complete(key=encryption_key,
+                                                      nonce=net_nonce,
+                                                      text=soft_ctx.dst_addr +
+                                                      transport_pdu,
+                                                      adata=b'',
+                                                      mic_size=mic_size)
         enc_dst = aes_ccm_result[0:2]
         encrypted_data = aes_ccm_result[2:]
         net_mic = mic
-        print(f'len pdu: {len(transport_pdu)}, data: {encrypted_data.hex()}, mic: {mic.hex()}')
         return enc_dst, encrypted_data, net_mic
 
     def __xor(self, a: bytes, b: bytes):
@@ -122,19 +123,28 @@ class NetworkLayer:
 
     # TODO [Enhancement] Check the seq number
     def _fill_hard_ctx(self, clean_pdu: bytes):
-        self.hard_ctx.is_ctrl_msg = (clean_pdu[0] & 0x80 >> 7) == 1
+        self.hard_ctx.is_ctrl_msg = ((clean_pdu[0] & 0x80) >> 7) == 1
+        self.hard_ctx.ttl = clean_pdu[0] & 0x7f
         self.hard_ctx.seq = int.from_bytes(clean_pdu[1:4], 'big')
 
-    # TODO implement enc_key and net_nonce
-    def _decrypt(self, encrypted_pdu: bytes) -> (bytes, bytes):
-        encryption_key = b''
-        network_nonce = b''
-        mic_size = 8 if self.hard_ctx.is_ctrl_msg else 4
-        decrypted_pdu, calc_net_mic = crypto.aes_ccm_complete(key=encryption_key,
-                                        nonce=network_nonce,
-                                        text=encrypted_pdu, adata=b'', mic_size=mic_size)
+    def _decrypt(self, encrypted_pdu: bytes, src: bytes,
+                 net_data: NetworkData, net_mic: bytes) -> (bytes, bool):
+        _, encryption_key, _ = self._gen_security_material(net_data)
 
-        return decrypted_pdu, calc_net_mic
+        ctl = 0x80 if self.hard_ctx.is_ctrl_msg else 0x00
+        ttl = self.hard_ctx.ttl
+        seq = self.hard_ctx.seq
+        network_nonce = b'\x00' + (ctl | ttl).to_bytes(1, 'big') + \
+            seq.to_bytes(3, 'big') + src + b'\x00\x00' + net_data.iv_index
+
+        decrypted_pdu, mic_is_ok = crypto.aes_ccm_decrypt(
+            key=encryption_key, nonce=network_nonce, text=encrypted_pdu,
+            mic=net_mic)
+
+        self.log.debug(f'ttl: {ttl}, ctl: {ctl}, seq: {hex(seq)}, pdu: {decrypted_pdu.hex()}')
+        self.log.debug(f'Nonce: {network_nonce.hex()}, key: {encryption_key.hex()}')
+
+        return decrypted_pdu, mic_is_ok
 
     async def recv_pdu(self):
         while True:
@@ -142,59 +152,42 @@ class NetworkLayer:
 
             # got a message from another channel
             if msg_type != b'message':
-                # self.log.critical(f'Got a message from "{msg_type}" channel.'
-                #                   f' msg: {net_pdu.hex()}')
                 continue
 
-            print('n0')
             # get network by nid
             nid = net_pdu[0] & 0x7f
-            print('n1')
             net_data = self.__search_network_by_nid(nid)
-            print('n2')
             if not net_data:
                 continue
 
             # remove obsfucation
-            print('n3')
             clean_pdu = self._clean_message(net_pdu, net_data)
 
             # update seq, is_ctrl_msg
-            print('n4')
             self._fill_hard_ctx(clean_pdu)
 
             # update seq number in net_data YAML file
-            print('n5')
             net_data.seq = self.hard_ctx.seq
-            print(f'n6, net_data: {net_data}')
             net_data.save()
 
-            print('n7')
-            net_mic = net_pdu[-8:] if self.hard_ctx.is_ctrl_msg else \
-                net_pdu[-4:]
-            print('n8')
-            encrypted_pdu = net_pdu[7:]
-            print('n9')
-            decrypted_pdu, calc_net_mic = self._decrypt(encrypted_pdu)
-            print('n10')
-            if net_mic != calc_net_mic:
-                self.log.debug(f'NetMIC wrong. Receive "{net_mic}" and '
-                               f'calculated "{calc_net_mic}"')
+            mic_size = 8 if self.hard_ctx.is_ctrl_msg else 4
+            net_mic = net_pdu[-mic_size:]
+            encrypted_pdu = net_pdu[7:-mic_size]
+            src_addr = clean_pdu[-2:]
+            decrypted_pdu, mic_is_ok = self._decrypt(encrypted_pdu,
+                                                     src_addr, net_data, net_mic)
+
+            if not mic_is_ok:
+                self.log.debug(f'Src addr: {src_addr.hex()}')
+                self.log.debug(f'NetMIC wrong. Receive "{net_mic.hex()}"')
                 continue
-            print('n11')
             soft_ctx = SoftContext(src_addr=b'', dst_addr=b'', node_name='',
                                    network_name='', application_name='',
                                    is_devkey=False, ack_timeout=0,
                                    segment_timeout=0)
-            print('n12')
             soft_ctx.src_addr = clean_pdu[-2:]
-            print('n13')
             soft_ctx.dst_addr = decrypted_pdu[0:2]
-            print('n14')
             soft_ctx.network_name = net_data.name
 
-            print('n15')
             transport_pdu = decrypted_pdu[2:]
-            print('n16')
             await self.transport_pdus.put((transport_pdu, soft_ctx))
-            print('n17')

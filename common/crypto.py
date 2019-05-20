@@ -28,6 +28,17 @@ class Crypto:
         cyphertext, tag = cypher.encrypt_and_digest(text + adata)
         return cyphertext, tag
 
+    def aes_ccm_decrypt(self, key: bytes, nonce: bytes, text: bytes, mic: bytes):
+        cypher = AES.new(key=key, mode=AES.MODE_CCM, nonce=nonce, mac_len=len(mic))
+        data = cypher.decrypt(text)
+        try:
+            cypher.verify(mic)
+        except ValueError:
+            check = False
+        else:
+            check = True
+        return data, check
+
     def s1(self, text: bytes):
         return self.aes_cmac(key=b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', text=text)
 

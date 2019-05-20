@@ -113,3 +113,17 @@ def test_aes_ccm_decrypt():
     expected_result = bytes.fromhex('fffd034b50057e400000010000')
     result = crypto.aes_ccm(encryption_key, network_nonce, encrypted_pdu, b'')
     assert result == expected_result
+
+
+def test_aes_ccm_mic_check():
+    '''Message #7'''
+    encrypted_pdu = bytes.fromhex('0d0d730f94d7f3509d')
+    network_nonce = bytes.fromhex('008b0148352345000012345678')
+    encryption_key = bytes.fromhex('0953fa93e7caac9638f58820220a398e')
+    mic = bytes.fromhex('f987bb417eb7c05f')
+
+    expected_result = bytes.fromhex('000300a6ac00000002')
+    result, check = crypto.aes_ccm_decrypt(encryption_key, network_nonce,
+                                           encrypted_pdu, mic)
+    assert result == expected_result
+    assert check is True
