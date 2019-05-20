@@ -150,6 +150,7 @@ class NetworkLayer:
 
     async def recv_pdu(self):
         while True:
+            self.log.debug(f'Waiting message...')
             msg_type, net_pdu = await self.recv_queue.get()
 
             # got a message from another channel
@@ -176,8 +177,8 @@ class NetworkLayer:
             net_mic = net_pdu[-mic_size:]
             encrypted_pdu = net_pdu[7:-mic_size]
             src_addr = clean_pdu[-2:]
-            decrypted_pdu, mic_is_ok = self._decrypt(encrypted_pdu,
-                                                     src_addr, net_data, net_mic)
+            decrypted_pdu, mic_is_ok = self._decrypt(encrypted_pdu, src_addr,
+                                                     net_data, net_mic)
 
             if not mic_is_ok:
                 self.log.debug(f'Src addr: {src_addr.hex()}')

@@ -4,7 +4,6 @@ from client.network.network_data import NetworkData
 from client.data_paths import base_dir, node_dir, app_dir, net_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
-from common.utils import FinishAsync
 import click
 import asyncio
 
@@ -23,6 +22,16 @@ def validate_app(ctx, param, value):
     if not app_name_list() or value not in app_name_list():
         raise click.BadParameter(f'The "{value}" application not exist')
     return value
+
+
+async def run_seq(seq_tasks: list):
+    results = []
+    for t in seq_tasks:
+        t_h = asyncio.gather(t)
+        r = await t_h
+        results.append(r)
+        await asyncio.sleep(.5)
+    return results
 
 
 @click.command()
@@ -45,6 +54,7 @@ def add_appkey(target, app):
     key_index = (net_key | (app_key << 12)).to_bytes(3, 'big')
 
     opcode = b'\x00'
+    r_opcode = b'\x80\x03'
     parameters = key_index + app_data.key
 
     try:
@@ -58,12 +68,15 @@ def add_appkey(target, app):
                               is_devkey=True,
                               ack_timeout=30,
                               segment_timeout=10)
-        client_element.all_tasks += [client_element.send_message(
-            opcode=opcode, parameters=parameters, ctx=context)]
-        asyncio.gather(client_element.spwan_tasks(loop))
-        loop.run_forever()
-    except FinishAsync:
-        pass
+        run_seq_t = run_seq([
+            client_element.spwan_tasks(loop),
+            client_element.send_message(opcode=opcode, parameters=parameters,
+                                        ctx=context),
+            client_element.recv_message(opcode=r_opcode, segment_timeout=10,
+                                        timeout=30)
+        ])
+        results = loop.run_until_complete(run_seq_t)
+        print(f'Receive message: {results[2]}')
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:

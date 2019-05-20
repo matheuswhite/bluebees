@@ -128,8 +128,9 @@ class TransportLayer:
         ack_bits = 0
         expected_ack_bits = (2 ** (self.net_layer.hard_ctx.seg_n + 1)) - 1
         while True:
-            self.log.debug(f'Waiting message...')
+            self.log.debug(f'Waiting ack...')
             ack_pdu, r_ctx = await self.net_layer.transport_pdus.get()
+            self.log.debug(f'Got ack')
 
             # not same src and dst address (discard)
             if not self.__check_addresses(r_ctx, soft_ctx):
@@ -185,8 +186,11 @@ class TransportLayer:
             for seg in segments:
                 await self.net_layer.send_pdu(seg, soft_ctx)
 
-            await asyncio.wait_for(self._wait_ack(soft_ctx, segments),
-                                   soft_ctx.ack_timeout)
+            try:
+                await asyncio.wait_for(self._wait_ack(soft_ctx, segments),
+                                       soft_ctx.ack_timeout)
+            except asyncio.TimeoutError:
+                self.log.error('Wait ack timeout')
 
     # receive methods
     async def __send_ack(self, seg_o_table: dict, soft_ctx: SoftContext):
@@ -226,13 +230,16 @@ class TransportLayer:
                        ctx: SoftContext) -> SoftContext:
         afk = start_pdu[0] & 0x40 >> 6
         aid = start_pdu[0] & 0x3f
-        app_name = self.__search_application_by_aid(aid)
-        if not app_name:
-            self.log.error(f'Not found any application with AID equals to '
-                           f'{hex(aid)}')
-            return None
-        ctx.application_name = app_name
-        ctx.is_devkey = afk == 0
+        if afk == 1:
+            app_name = self.__search_application_by_aid(aid)
+            ctx.application_name = app_name
+            ctx.is_devkey = False
+        else:
+            # TODO remove this warning
+            self.log.warning(f'Not found any application with AID equals to '
+                             f'{hex(aid)}')
+            ctx.application_name = ''
+            ctx.is_devkey = True
 
         return ctx
 
@@ -318,19 +325,25 @@ class TransportLayer:
         return segments
 
     async def recv_pdu(self, segment_timeout: int) -> (bytes, SoftContext):
-        self.net_layer.hard_ctx.reset()
+        # self.net_layer.hard_ctx.reset()
+
+        start_pdu, soft_ctx = await self.net_layer.transport_pdus.get()
 
         while self.net_layer.hard_ctx.is_ctrl_msg:
             start_pdu, soft_ctx = await self.net_layer.transport_pdus.get()
 
         # unsegmented pdu
+        self.log.debug('Testing if is segmented...')
         if ((start_pdu[0] & 0x80) >> 7) == 0:
+            self.log.debug(f'Is unsegmented. PDU: {start_pdu.hex()}')
             soft_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=soft_ctx)
             if not soft_ctx:
                 return None, None
 
             start_pdu = start_pdu[1:]
+            self.log.debug('Start decrypting...')
             access_pdu = self._decrypt_transport_pdu(start_pdu, soft_ctx)
+            self.log.debug('End decrypt')
 
             return access_pdu, soft_ctx
 

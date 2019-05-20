@@ -6,9 +6,8 @@ from client.mesh_layers.access_layer import check_opcode, check_parameters, \
                                             OpcodeLengthError, \
                                             OpcodeBadFormat, OpcodeReserved, \
                                             ParametersLengthError, opcode_len
-from common.logging import log_sys, INFO
+from common.logging import log_sys, INFO, DEBUG
 from common.client import Client
-from common.utils import FinishAsync
 import asyncio
 
 
@@ -27,7 +26,7 @@ class Element(Client):
         super().__init__(sub_topic_list=[b'message'],
                          pub_topic_list=[b'message_s'])
         self.log = log_sys.get_logger('element')
-        self.log.set_level(INFO)
+        self.log.set_level(DEBUG)
 
         self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
                                        recv_queue=self.messages_received)
@@ -46,7 +45,6 @@ class Element(Client):
             check_parameters(opcode, parameters)
 
             pdu = opcode + parameters
-            # pdu = pdu[::-1]
 
             await self.tr_layer.send_pdu(pdu, ctx)
         except OpcodeLengthError:
@@ -63,17 +61,19 @@ class Element(Client):
             self.log.error(f'The destination address cannot be 0x0000')
         except AckTimeout:
             self.log.warning('Ack timeout')
-        else:
-            await asyncio.sleep(1)
-            raise FinishAsync
 
     async def _recv_message_atomic(self, opcode: bytes,
                                    segment_timeout: int) -> bytes:
         while True:
+            self.log.debug('Waiting message atomic...')
             content, _ = await self.tr_layer.recv_pdu(segment_timeout)
             if not content:
+                self.log.debug('No content')
                 continue
+            self.log.debug('Get opcode len')
             op_len = opcode_len(content[0:1])
+            self.log.debug(f'Opcode len: {op_len}')
+            self.log.debug(f'Opcode: {content[0:op_len]}')
             if content[0:op_len] == opcode:
                 return content[1:]
 
@@ -81,16 +81,15 @@ class Element(Client):
                            timeout=30) -> bytes:
         content = None
 
-        try:
-            check_opcode(opcode)
-            content = \
-                await asyncio.wait_for(self._recv_message_atomic(opcode,
-                                                                 segment_timeout),
-                                       timeout=timeout)
+        self.log.debug('Start recv...')
 
-            content = content[::-1]
-        except Exception as e:
-            self.log.critical(f'Unknown Exception:\n{e}')
+        try:
+            self.log.debug('Checking opcode...')
+            check_opcode(opcode)
+            self.log.debug('Opcode is ok')
+            content = await asyncio.wait_for(self._recv_message_atomic(
+                opcode, segment_timeout), timeout=timeout)
+            self.log.debug('End receive')
         except OpcodeLengthError:
             self.log.error('Opcode length wrong')
         except OpcodeReserved:
@@ -101,12 +100,4 @@ class Element(Client):
             self.log.warning(f'The maximum time to receive a message with '
                              f'opcode equals to "{opcode}" was reached')
 
-        return content
-
-# a2ebae
-# e4d49718000000000000000000000000
-# a2ebaee4d49718000000000000000000000000
-
-# 0x094d
-# 0x06b0
-# 0x6b094d
+        self.log.info(f'Content: {content}')
