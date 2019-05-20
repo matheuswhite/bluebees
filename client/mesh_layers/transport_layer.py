@@ -4,7 +4,7 @@ from client.network.network_data import NetworkData
 from client.application.application_data import ApplicationData
 from client.node.node_data import NodeData
 from client.data_paths import base_dir, net_dir, app_dir, node_dir
-from common.logging import log_sys, INFO
+from common.logging import log_sys, INFO, DEBUG
 from common.crypto import crypto
 from common.file import file_helper
 from typing import List
@@ -28,7 +28,7 @@ class TransportLayer:
                                       recv_queue=recv_queue)
 
         self.log = log_sys.get_logger('transport_layer')
-        self.log.set_level(INFO)
+        self.log.set_level(DEBUG)
 
     # send methods
     def _encrypt_access_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
@@ -94,11 +94,11 @@ class TransportLayer:
                                             soft_ctx.application_name +
                                             '.yml')
             aid = crypto.k4(n=app_data.key)
+            first_byte = first_byte | 0x40
         else:
             node_data = NodeData.load(base_dir + node_dir +
                                       soft_ctx.node_name + '.yml')
             aid = crypto.k4(n=node_data.devkey)
-            first_byte = first_byte | 0x40
         first_byte = (first_byte | (aid[0] & 0x3f)).to_bytes(1, 'big')
 
         cont = (self.net_layer.hard_ctx.seg_n & 0x1f)
@@ -121,40 +121,53 @@ class TransportLayer:
         return segments
 
     def __check_addresses(self, recv_ctx: SoftContext, ctx: SoftContext):
-        return (recv_ctx.src_addr == ctx.src_addr) and \
-            (recv_ctx.dst_addr == ctx.dst_addr)
+        return (recv_ctx.src_addr == ctx.dst_addr) and \
+            (recv_ctx.dst_addr == ctx.src_addr)
 
-    async def _wait_ack(self, soft_ctx: SoftContext):
+    async def _wait_ack(self, soft_ctx: SoftContext, segments: List[bytes]):
         ack_bits = 0
         expected_ack_bits = (2 ** (self.net_layer.hard_ctx.seg_n + 1)) - 1
         while True:
+            self.log.debug(f'Waiting message...')
             ack_pdu, r_ctx = await self.net_layer.transport_pdus.get()
 
             # not same src and dst address (discard)
             if not self.__check_addresses(r_ctx, soft_ctx):
+                self.log.debug(f'Src {r_ctx.src_addr.hex()}, '
+                               f'Dst: {r_ctx.dst_addr.hex()}')
                 continue
 
             # not control message (discard)
             if not self.net_layer.hard_ctx.is_ctrl_msg:
+                self.log.debug('Not control message')
                 continue
 
             # not ack pdu (discard)
             if ack_pdu[0] != 0x00:
+                self.log.debug('Not ack pdu')
                 continue
 
             # seq zero wrong (discard)
             pdu_seq_zero = (int.from_bytes(ack_pdu[1:3], 'big') & 0x7ffc) >> 2
             if pdu_seq_zero != self.net_layer.hard_ctx.seq_zero:
+                self.log.debug(f'Seq_zero: {pdu_seq_zero}')
                 continue
 
-            ack_bits = ack_bits | ack_pdu[3:7]
+            ack_bits = ack_bits | int.from_bytes(ack_pdu[3:7], 'big')
+            self.log.debug(f'Ack bits: {hex(ack_bits)}')
             if ack_bits == expected_ack_bits:
                 return
+            else:
+                # resend missing segments
+                bits = ack_bits
+                for seg in segments:
+                    if bits & 0x01 == 0:
+                        await self.net_layer.send_pdu(seg, soft_ctx)
+                    bits = bits >> 1
+                self.log.debug(f'Ack bits [a]: {hex(ack_bits)}')
 
     async def send_pdu(self, access_pdu: bytes, soft_ctx: SoftContext):
         self.net_layer.hard_ctx.reset()
-
-        self.net_layer.increment_seq(soft_ctx)
 
         crypt_access_pdu = self._encrypt_access_pdu(access_pdu, soft_ctx)
 
@@ -172,7 +185,7 @@ class TransportLayer:
             for seg in segments:
                 await self.net_layer.send_pdu(seg, soft_ctx)
 
-            await asyncio.wait_for(self._wait_ack(soft_ctx),
+            await asyncio.wait_for(self._wait_ack(soft_ctx, segments),
                                    soft_ctx.ack_timeout)
 
     # receive methods

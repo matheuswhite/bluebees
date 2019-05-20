@@ -22,7 +22,7 @@ class NetworkLayer:
         # (transport_pdu: bytes, soft_ctx: SoftContext)
         self.transport_pdus = asyncio.Queue()
 
-    def increment_seq(self, soft_ctx: SoftContext):
+    def __increment_seq(self, soft_ctx: SoftContext):
         net_name = soft_ctx.network_name
         net_data = NetworkData.load(base_dir + net_dir + net_name + '.yml')
         net_data.seq += 1
@@ -99,6 +99,8 @@ class NetworkLayer:
             enc_transport_pdu + net_mic
 
         await self.send_queue.put((b'message_s', network_pdu))
+
+        self.__increment_seq(soft_ctx)
 
     # receive methods
     def __search_network_by_nid(self, nid: int) -> NetworkData:
