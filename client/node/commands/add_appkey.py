@@ -52,6 +52,7 @@ def add_appkey(target, app):
     app_key = int.from_bytes(app_data.key_index, 'big')
     print(f'Net_key: {hex(net_key)}, App_key: {hex(app_key)}')
     key_index = (net_key | (app_key << 12)).to_bytes(3, 'big')
+    print(f'Key index: {key_index.hex()}')
 
     opcode = b'\x00'
     r_opcode = b'\x80\x03'
