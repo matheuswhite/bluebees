@@ -1,0 +1,5 @@
+commands:
+  - opcode: '824502'
+    parameters: 0075
+  - opcode: '824503'
+    parameters: 0125
