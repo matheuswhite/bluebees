@@ -161,8 +161,9 @@ class TransportLayer:
             else:
                 # resend missing segments
                 bits = ack_bits
-                for seg in segments:
+                for i, seg in enumerate(segments):
                     if bits & 0x01 == 0:
+                        self.log.debug(f'Send segment: {i}')
                         await self.net_layer.send_pdu(seg, soft_ctx)
                     bits = bits >> 1
                 self.log.debug(f'Ack bits [a]: {hex(ack_bits)}')
@@ -218,6 +219,16 @@ class TransportLayer:
 
         return None
 
+    def __search_node_by_addr(self, addr: bytes) -> str:
+        filenames = file_helper.list_files(base_dir + node_dir)
+
+        for f in filenames:
+            node_data = NodeData.load(base_dir + node_dir + f)
+            if addr == node_data.addr:
+                return node_data.name
+
+        return None
+
     def _fill_hard_ctx(self, start_pdu: bytes):
         self.net_layer.hard_ctx.szmic = (start_pdu[1] & 0x80) >> 7
         self.net_layer.hard_ctx.seq_zero = \
@@ -235,11 +246,15 @@ class TransportLayer:
             ctx.application_name = app_name
             ctx.is_devkey = False
         else:
-            # TODO remove this warning
-            self.log.warning(f'Not found any application with AID equals to '
-                             f'{hex(aid)}')
             ctx.application_name = ''
             ctx.is_devkey = True
+
+        node_name = self.__search_node_by_addr(ctx.src_addr)
+        if not node_name:
+            self.log.error(f'Node not found with addr {ctx.src_addr.hex()}')
+            return None
+
+        ctx.node_name = node_name
 
         return ctx
 
@@ -258,6 +273,7 @@ class TransportLayer:
                                     '.yml')
 
         if ctx.is_devkey:
+            self.log.debug(f'node name: {ctx.node_name}')
             node_data = NodeData.load(base_dir + node_dir + ctx.node_name +
                                       '.yml')
             key = node_data.devkey
@@ -274,11 +290,14 @@ class TransportLayer:
         nonce += ctx.dst_addr
         nonce += net_data.iv_index
 
-        aes_ccm_result = crypto.aes_ccm(key=key, nonce=nonce,
-                                        text=encrypted_pdu, adata=b'')
-        access_pdu = aes_ccm_result[0:-4]
-        cacl_transport_mic = aes_ccm_result[-4:]
-        if cacl_transport_mic != transport_mic:
+        access_pdu, mic_is_ok = crypto.aes_ccm_decrypt(key=key, nonce=nonce,
+                                                       text=encrypted_pdu,
+                                                       mic=transport_mic)
+
+        self.log.debug(f'Access PDU: {access_pdu.hex()}')
+
+        if not mic_is_ok:
+            self.log.warning(f'Mic is wrong')
             return None
         else:
             return access_pdu

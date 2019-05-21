@@ -34,7 +34,7 @@ def check_opcode(opcode: bytes):
 
 
 def opcode_len(opcode: bytes) -> int:
-    prefix = (opcode[0] & 0xC0) >> 7
+    prefix = (opcode[0] & 0xC0) >> 6
     if prefix == 0:
         return 1
     else:

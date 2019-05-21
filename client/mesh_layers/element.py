@@ -75,7 +75,7 @@ class Element(Client):
             self.log.debug(f'Opcode len: {op_len}')
             self.log.debug(f'Opcode: {content[0:op_len]}')
             if content[0:op_len] == opcode:
-                return content[1:]
+                return content[op_len:]
 
     async def recv_message(self, opcode: bytes, segment_timeout=10,
                            timeout=30) -> bytes:
@@ -100,4 +100,6 @@ class Element(Client):
             self.log.warning(f'The maximum time to receive a message with '
                              f'opcode equals to "{opcode}" was reached')
 
-        self.log.info(f'Content: {content}')
+        self.log.info(f'Content: {content.hex()}')
+
+        return content
