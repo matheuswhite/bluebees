@@ -40,6 +40,7 @@ Tasks:
   Mesh:
     ✔ Implement transport layer @done(19-05-16 17:59)
     ✔ Implement network layer @started(19-05-16 17:59) @done(19-05-16 18:42) @lasted(43m14s)
+    ☐ Implement a command to get a list of current UUID
     ☐ Test mesh implementation
   Core:
     ✔ Test core performance @done(19-05-11 18:23)
