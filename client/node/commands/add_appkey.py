@@ -51,12 +51,14 @@ def add_appkey(target, app):
     net_key = int.from_bytes(net_data.key_index, 'big')
     app_key = int.from_bytes(app_data.key_index, 'big')
     print(f'Net_key: {hex(net_key)}, App_key: {hex(app_key)}')
-    key_index = (net_key | (app_key << 12)).to_bytes(3, 'big')
+    key_index = (net_key | (app_key << 12)).to_bytes(3, 'big')[::-1]
     print(f'Key index: {key_index.hex()}')
 
     opcode = b'\x00'
     r_opcode = b'\x80\x03'
     parameters = key_index + app_data.key
+
+    print(f'Key index: {key_index[::-1].hex()}, Appkey: {app_data.key.hex()}')
 
     try:
         loop = asyncio.get_event_loop()
