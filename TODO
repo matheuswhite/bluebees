@@ -14,16 +14,22 @@ Tasks:
     ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
     ✔ Check if hex string has some invalid character @started(19-05-18 19:28) @done(19-05-18 19:42) @lasted(14m8s)
     ☐ Check the cause of node not send all ack block
+    ☐ Add application and node to 'net_data' when 'add_appkey' command was called
+    ☐ Create a file to storage a group
+      -- This file will contain a list of unicast address (node addr)
+      -- When send a message to group address, check if src address, in response message, is within the group file
+      -- Only apply this validation if the send message is to group address
   Enhancement:
     ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
     ✘ Change print for logger @started(19-05-12 17:26) @cancelled(19-05-17 09:31) @wasted(4d16h5m26s)
+    ☐ Add check address in node creation
+    ☐ Send a reset to dongle every time the 'core run' command is executed
     ☐ Add the flag '--log' to enable command write a log file
       This flag will be passed by context
     ☐ Add the flag '--log-dir PATH' to specify the path where the command will store the log
       This flag will be passed by context
     ☐ Add the flag '--debug' to enable command debug
       This flag will be passed by context
-    ☐ Send a reset to dongle every time the 'core run' command is executed
     ✔ Split commands in multiples files @done(19-05-18 20:42)
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
@@ -44,6 +50,7 @@ Tasks:
     ✔ Implement network layer @started(19-05-16 17:59) @done(19-05-16 18:42) @lasted(43m14s)
     ✔ Implement a command to get a list of current UUID @done(19-05-22 10:04)
     ☐ Test mesh implementation
+    ☐ Remake src and dst address validation in transport layer
   Core:
     ✔ Test core performance @done(19-05-11 18:23)
   Network:
@@ -52,6 +59,7 @@ Tasks:
     ✔ Implement list command @done(19-05-05 12:39)
     ✔ Implement info command @started(19-05-05 12:39) @done(19-05-05 12:48) @lasted(9m47s)
     ✔ Check the size of net key in template @done(19-05-05 13:02)
+    ☐ Add node list to 'net_data'
   App:
     ✔ Implement new command @done(19-05-05 14:33)
     ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)
@@ -72,5 +80,7 @@ Tasks:
     ✔ Test the new implementation of send command @done(19-05-22 10:25)
     ✔ Test the new implementation of req command @done(19-05-18 19:47)
     ✔ Test the new implementation of config command @done(19-05-18 19:45)
-    ☐ Implement the real req command @started(19-05-22 10:26)
+    ✔ Implement the real req command @started(19-05-22 10:26) @done(19-05-22 15:35) @lasted(5h9m19s)
+    ☐ Add the group address field to node_data
+      This field is list
     ☐ Implement the real config command
