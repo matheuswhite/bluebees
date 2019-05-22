@@ -23,6 +23,7 @@ Tasks:
       This flag will be passed by context
     ☐ Add the flag '--debug' to enable command debug
       This flag will be passed by context
+    ☐ Send a reset to dongle every time the 'core run' command is executed
     ✔ Split commands in multiples files @done(19-05-18 20:42)
     ☐ Add a task in 'core run' to show status
         This status will be published on 'core_stats' channel
@@ -68,7 +69,7 @@ Tasks:
     ✔ Test the new implementation of new command @done(19-05-19 11:57)
     ✔ Test the new implementation of list command @done(19-05-19 11:57)
     ✔ Test the new implementation of info command @done(19-05-19 11:57)
-    ☐ Test the new implementation of send command
+    ✔ Test the new implementation of send command @done(19-05-22 10:25)
     ✔ Test the new implementation of req command @done(19-05-18 19:47)
     ✔ Test the new implementation of config command @done(19-05-18 19:45)
     ☐ Implement the real req command
