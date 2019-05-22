@@ -4,15 +4,15 @@ applications:
 models:
   - index: 1
     publish: '0023'
-    subscribe: '0022'
+    subscribe: ['0022', '0234']
     application: ayna-app0
   - index: 2
     publish: '0035'
-    subscribe: '0024'
+    subscribe: ['0024']
     application: ayna-app0
   - index: 3
     publish: '0015'
-    subscribe: '0022'
+    subscribe: ['0022']
     application: ayna-app0
 post_cmd:
   - set_threhold.yml
