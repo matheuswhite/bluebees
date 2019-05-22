@@ -3,6 +3,7 @@ from client.core.core import core
 from client.network.network import net
 from client.application.application import app
 from client.node.node import node
+from client.device.device import device
 
 
 @click.group()
@@ -54,6 +55,7 @@ cli.add_command(core)
 cli.add_command(net)
 cli.add_command(app)
 cli.add_command(node)
+cli.add_command(device)
 
 if __name__ == "__main__":
     cli()
