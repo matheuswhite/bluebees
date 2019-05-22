@@ -19,6 +19,7 @@ Tasks:
       -- This file will contain a list of unicast address (node addr)
       -- When send a message to group address, check if src address, in response message, is within the group file
       -- Only apply this validation if the send message is to group address
+      -- This file will be create in 'node config' command
   Enhancement:
     ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
     ✘ Change print for logger @started(19-05-12 17:26) @cancelled(19-05-17 09:31) @wasted(4d16h5m26s)
@@ -49,7 +50,7 @@ Tasks:
     ✔ Implement transport layer @done(19-05-16 17:59)
     ✔ Implement network layer @started(19-05-16 17:59) @done(19-05-16 18:42) @lasted(43m14s)
     ✔ Implement a command to get a list of current UUID @done(19-05-22 10:04)
-    ☐ Test mesh implementation
+    ✔ Test mesh implementation @done(19-05-22 16:29)
     ☐ Remake src and dst address validation in transport layer
   Core:
     ✔ Test core performance @done(19-05-11 18:23)
