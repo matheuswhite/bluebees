@@ -60,7 +60,7 @@ def random_addr():
 
 
 def provisioning_device(device_uuid: bytes, network: str,
-                        addr: bytes, debug: bool):
+                        addr: bytes, node_name: str, debug: bool):
     click.echo(click.style(f'Provisioning device "{device_uuid}" to network '
                            f'"{network}"', fg='cyan'))
     success = False
@@ -83,6 +83,8 @@ def provisioning_device(device_uuid: bytes, network: str,
     except ProvisioningSuccess:
         devkey = prov.devkey
         success = True
+        net_data.nodes.append(node_name)
+        net_data.save()
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
         if prov and prov.tasks_h:
@@ -145,7 +147,7 @@ def parse_template(ctx, param, value):
         uuid = bytes.fromhex(uuid)
 
     # provisioning device
-    success, devkey = provisioning_device(uuid, network, address, False)
+    success, devkey = provisioning_device(uuid, network, address, name, False)
     if not success:
         click.echo(click.style('Error in provisioning', fg='red'))
     else:
@@ -186,7 +188,7 @@ def new(name, network, address, uuid, template):
     address = bytes.fromhex(address)
 
     # provisioning device
-    success, devkey = provisioning_device(uuid, network, address, False)
+    success, devkey = provisioning_device(uuid, network, address, name, False)
     if not success:
         click.echo(click.style('Error in provisioning', fg='red'))
     else:

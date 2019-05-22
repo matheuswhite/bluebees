@@ -1,7 +1,5 @@
 from client.node.node_data import NodeData, node_name_list
-from client.application.application_data import ApplicationData, app_name_list
-from client.network.network_data import NetworkData
-from client.data_paths import base_dir, node_dir, app_dir, net_dir
+from client.data_paths import base_dir, node_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
 from common.utils import run_seq

@@ -60,7 +60,7 @@ Tasks:
     ✔ Implement list command @done(19-05-05 12:39)
     ✔ Implement info command @started(19-05-05 12:39) @done(19-05-05 12:48) @lasted(9m47s)
     ✔ Check the size of net key in template @done(19-05-05 13:02)
-    ☐ Add node list to 'net_data'
+    ✔ Add node list to 'net_data' @done(19-05-22 16:45)
   App:
     ✔ Implement new command @done(19-05-05 14:33)
     ✔ Implement list command @started(19-05-05 14:35) @done(19-05-05 14:40) @lasted(5m28s)

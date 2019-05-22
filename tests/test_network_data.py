@@ -11,13 +11,18 @@ def test_network_data():
     key_index = get_random_bytes(2)
     iv_index = get_random_bytes(4)
     num_apps = 10
+    num_nodes = 15
 
     apps = []
     for x in range(num_apps):
         apps.append(f'test_app{x}')
 
+    nodes = []
+    for x in range(num_nodes):
+        nodes.append(f'test_node{x}')
+
     data = NetworkData(name=name, key=key, key_index=key_index,
-                       iv_index=iv_index, seq=-1, apps=apps)
+                       iv_index=iv_index, seq=-1, apps=apps, nodes=nodes)
 
     assert file_helper.file_exist(base_dir + net_dir + name + '.yml') is \
         False

@@ -13,22 +13,24 @@ class NetworkData(Serializable):
     iv_index: bytes   # 4 bytes
     seq: int          # 3 bytes
     apps: List[str]
+    nodes: List[str]
 
-    def __init__(self, name, key, key_index, iv_index, seq=-1, apps=[]):
+    def __init__(self, name, key, key_index, iv_index, seq=-1, apps=[], nodes=[]):
         super().__init__(filename=base_dir + net_dir + name + '.yml')
 
         self.name = name
         self.key = key
         self.key_index = key_index
         self.iv_index = iv_index
-        self.apps = apps
         self.seq = seq
+        self.apps = apps
+        self.nodes = nodes
 
     def __repr__(self):
         return f'Name: {self.name}\nKey: {self.key.hex()}\n' \
                f'Key Index: {self.key_index.hex()}\nIV Index: {self.iv_index.hex()}\n' \
                f'Seq number: {0 if self.seq == -1 else self.seq}\n' \
-               f'Applications: {self.apps}'
+               f'Applications: {self.apps}\nNodes: {self.nodes}'
 
 
 def net_name_list() -> list:
