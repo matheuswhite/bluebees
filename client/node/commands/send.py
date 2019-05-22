@@ -48,7 +48,11 @@ def validate_parameters(ctx, param, value):
 @click.option('--parameters', '-p', type=str, default='', required=True,
               help='Specify the parameters of message',
               callback=validate_parameters)
-def send(target, opcode, parameters):
+@click.option('--devkey', is_flag=True, help='Use devkey instead of appkey')
+@click.option('--app', '-a', type=str, default='',
+              help='Specify the application used in communication. The first'
+                   ' application found in node will be used by default')
+def send(target, opcode, parameters, devkey, app):
     '''Send a message to node'''
 
     click.echo(click.style(f'Sending message [{opcode}, {parameters}] to '
@@ -61,12 +65,21 @@ def send(target, opcode, parameters):
     try:
         loop = asyncio.get_event_loop()
         client_element = Element()
-        if not node_data.apps:
+        if devkey:
+            app_name = ''
+            is_devkey = True
+        elif not node_data.apps:
+            click.echo(click.style('Using devkey beacuse node hasn\'t '
+                                   'application registred', fg='yellow'))
             app_name = ''
             is_devkey = True
         else:
-            app_name = node_data.apps[0]
-            is_devkey = False
+            if app in node_data.apps:
+                app_name = app
+                is_devkey = False
+            else:
+                app_name = node_data.apps[0]
+                is_devkey = False
         context = SoftContext(src_addr=b'\x00\x01',
                               dst_addr=node_data.addr,
                               node_name=node_data.name,

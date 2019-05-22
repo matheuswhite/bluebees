@@ -238,7 +238,7 @@ class TransportLayer:
             (int.from_bytes(start_pdu[2:4], 'big') & 0x03e0) >> 5
         self.net_layer.hard_ctx.seg_n = start_pdu[3] & 0x1f
 
-        self.log.debug(f'Seq zero: {self.net_layer.hard_ctx.seq_zero}')
+        self.log.debug(f'Seq zero: {hex(self.net_layer.hard_ctx.seq_zero)}')
 
     def _fill_soft_ctx(self, start_pdu: bytes,
                        ctx: SoftContext) -> SoftContext:

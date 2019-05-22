@@ -52,7 +52,11 @@ def validate_parameters(ctx, param, value):
 @click.option('--r_opcode', '-r', type=str, default='', required=True,
               help='Specify the expected opcode of receive message',
               callback=validate_opcode)
-def req(target, opcode, parameters, r_opcode):
+@click.option('--devkey', is_flag=True, help='Use devkey instead of appkey')
+@click.option('--app', '-a', type=str, default='',
+              help='Specify the application used in communication. The first'
+                   ' application found in node will be used by default')
+def req(target, opcode, parameters, r_opcode, devkey, app):
     '''Request a message to node (Send a message and wait the response)'''
 
     click.echo(click.style(f'Sending message [{opcode}, {parameters}] to '
@@ -69,26 +73,35 @@ def req(target, opcode, parameters, r_opcode):
     try:
         loop = asyncio.get_event_loop()
         client_element = Element()
-        if not node_data.apps:
+        if devkey:
+            app_name = ''
+            is_devkey = True
+        elif not node_data.apps:
+            click.echo(click.style('Using devkey beacuse node hasn\'t '
+                                   'application registred', fg='yellow'))
             app_name = ''
             is_devkey = True
         else:
-            app_name = node_data.apps[0]
-            is_devkey = False
+            if app in node_data.apps:
+                app_name = app
+                is_devkey = False
+            else:
+                app_name = node_data.apps[0]
+                is_devkey = False
         context = SoftContext(src_addr=b'\x00\x01',
                               dst_addr=node_data.addr,
                               node_name=node_data.name,
                               network_name=node_data.network,
                               application_name=app_name,
-                              is_devkey=True,
+                              is_devkey=is_devkey,
                               ack_timeout=30,
                               segment_timeout=10)
         run_seq_t = run_seq([
             client_element.spwan_tasks(loop),
             client_element.send_message(opcode=opcode, parameters=parameters,
                                         ctx=context),
-            client_element.recv_message(opcode=r_opcode, segment_timeout=10,
-                                        timeout=30, ctx=context)
+            client_element.recv_message(opcode=r_opcode, segment_timeout=3,
+                                        timeout=10, ctx=context)
         ])
         results = loop.run_until_complete(run_seq_t)
 
