@@ -7,6 +7,7 @@ from client.mesh_layers.element import Element
 from common.utils import run_seq
 import click
 import asyncio
+import traceback
 
 
 def validate_target(ctx, param, value):
@@ -62,32 +63,43 @@ def add_appkey(target, app):
             client_element.spwan_tasks(loop),
             client_element.send_message(opcode=opcode, parameters=parameters,
                                         ctx=context),
-            client_element.recv_message(opcode=r_opcode, segment_timeout=10,
-                                        timeout=30, ctx=context)
+            client_element.recv_message(opcode=r_opcode, segment_timeout=3,
+                                        timeout=10, ctx=context)
         ])
         results = loop.run_until_complete(run_seq_t)
 
         content = results[2][0]
-        if content[0] == 0:
-            if content[1:] == key_index:
-                click.echo(click.style('App key add with successful',
-                                       fg='green'))
-                node_data.apps.append(app_data.name)
-                node_data.save()
-                app_data.nodes.append(node_data.name)
-                app_data.save()
+        if content:
+            if content[0] == 0:
+                if content[1:] == key_index:
+                    click.echo(click.style('App key add with successful',
+                                           fg='green'))
+                    if app_data.name not in node_data.apps:
+                        node_data.apps.append(app_data.name)
+                        node_data.save()
+
+                    if node_data.name not in app_data.nodes:
+                        app_data.nodes.append(node_data.name)
+                        app_data.save()
+
+                    if app_data.name not in net_data.apps:
+                        net_data = NetworkData.load(base_dir + net_dir +
+                                                    node_data.network +
+                                                    '.yml')
+                        net_data.apps.append(app_data.name)
+                        net_data.save()
+                else:
+                    click.echo(click.style(f'Wrong key index: {content[1:].hex()}',
+                                           fg='red'))
             else:
-                click.echo(click.style(f'Wrong key index: {content[1:].hex()}',
+                click.echo(click.style(f'Fail. Error code: {content[0:1].hex()}',
                                        fg='red'))
-        else:
-            click.echo(click.style(f'Fail. Error code: {content[0:1].hex()}',
-                                   fg='red'))
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:
         click.echo('Runtime error')
-    except Exception as e:
-        click.echo(f'Unknown error\n[{e}]')
+    except Exception:
+        click.echo(traceback.format_exc())
     finally:
         client_element.disconnect()
         tasks_running = asyncio.Task.all_tasks()

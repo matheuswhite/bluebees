@@ -41,7 +41,7 @@ class Element(Client):
             if addres_type(ctx.dst_addr) == UNASSIGNED_ADDRESS:
                 raise DstAddressError
 
-            # check_opcode(opcode)
+            check_opcode(opcode)
             check_parameters(opcode, parameters)
 
             pdu = opcode + parameters
@@ -89,7 +89,7 @@ class Element(Client):
             check_opcode(opcode)
             self.log.debug('Opcode is ok')
             content = await asyncio.wait_for(self._recv_message_atomic(
-                opcode, segment_timeout, ctx=ctx), timeout=timeout)
+                opcode, segment_timeout, ctx), timeout=timeout)
             self.log.debug('End receive')
         except OpcodeLengthError:
             self.log.error('Opcode length wrong')
@@ -101,6 +101,7 @@ class Element(Client):
             self.log.warning(f'The maximum time to receive a message with '
                              f'opcode equals to "{opcode}" was reached')
 
-        self.log.debug(f'Content: {content.hex()}')
+        if content:
+            self.log.debug(f'Content: {content.hex()}')
 
         return content

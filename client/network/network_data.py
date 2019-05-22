@@ -15,7 +15,7 @@ class NetworkData(Serializable):
     apps: List[str]
     nodes: List[str]
 
-    def __init__(self, name, key, key_index, iv_index, seq=-1, apps=[], nodes=[]):
+    def __init__(self, name, key, key_index, iv_index, seq=0, apps=[], nodes=[]):
         super().__init__(filename=base_dir + net_dir + name + '.yml')
 
         self.name = name
@@ -28,8 +28,8 @@ class NetworkData(Serializable):
 
     def __repr__(self):
         return f'Name: {self.name}\nKey: {self.key.hex()}\n' \
-               f'Key Index: {self.key_index.hex()}\nIV Index: {self.iv_index.hex()}\n' \
-               f'Seq number: {0 if self.seq == -1 else self.seq}\n' \
+               f'Key Index: {self.key_index.hex()}\n' \
+               f'IV Index: {self.iv_index.hex()}\nSeq number: {self.seq}\n' \
                f'Applications: {self.apps}\nNodes: {self.nodes}'
 
 

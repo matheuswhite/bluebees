@@ -7,6 +7,7 @@ from client.node.provisioner import Provisioner, LinkOpenError, \
 from common.file import file_helper
 from common.template import template_helper
 from common.utils import check_hex_string
+from client.mesh_layers.address import addres_type, UNICAST_ADDRESS
 import click
 import asyncio
 
@@ -45,6 +46,8 @@ def validate_addr(ctx, param, value):
         raise click.BadParameter('Bad formatting on address hex string')
     if len(value) != 4:
         raise click.BadParameter('The length of node address is 2 bytes')
+    if addres_type(bytes.fromhex(value)) != UNICAST_ADDRESS:
+        raise click.BadParameter('The address must be a unicast address')
     return value
 
 
@@ -53,7 +56,7 @@ def random_addr():
 
     for x in range(2**16):
         addr = get_random_bytes(2)
-        if addr not in addr_list:
+        if addr not in addr_list and addres_type(addr) == UNICAST_ADDRESS:
             return addr.hex()
 
     return None
@@ -83,6 +86,7 @@ def provisioning_device(device_uuid: bytes, network: str,
     except ProvisioningSuccess:
         devkey = prov.devkey
         success = True
+        net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
         net_data.nodes.append(node_name)
         net_data.save()
     except KeyboardInterrupt:
