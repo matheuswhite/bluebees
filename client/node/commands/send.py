@@ -95,3 +95,4 @@ def send(target, opcode, parameters):
         loop.stop()
 
 # 4d096b543184ab000000000000000000000000
+# PublishTTL default 7 (4.3.2.16)

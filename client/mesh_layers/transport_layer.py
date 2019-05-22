@@ -192,32 +192,6 @@ class TransportLayer:
                 self.log.error('Wait ack timeout')
 
     # receive methods
-    def _encrypt_ack_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
-        net_data = NetworkData.load(base_dir + net_dir +
-                                    soft_ctx.network_name + '.yml')
-        self.net_layer.hard_ctx.seq = net_data.seq
-
-        if not soft_ctx.is_devkey:
-            app_data = ApplicationData.load(base_dir + app_dir +
-                                            soft_ctx.application_name +
-                                            '.yml')
-            app_key = app_data.key
-            app_nonce = b'\x01\x00' + \
-                self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
-                soft_ctx.src_addr + soft_ctx.dst_addr + net_data.iv_index
-        else:
-            node_data = NodeData.load(base_dir + node_dir +
-                                      soft_ctx.node_name + '.yml')
-            app_key = node_data.devkey
-            app_nonce = b'\x02\x00' + \
-                self.net_layer.hard_ctx.seq.to_bytes(3, 'big') + \
-                soft_ctx.src_addr + soft_ctx.dst_addr + net_data.iv_index
-
-        result, mic = crypto.aes_ccm_complete(key=app_key, nonce=app_nonce,
-                                              text=pdu, adata=b'', mic_size=8)
-
-        return result + mic
-
     async def __send_ack(self, seg_o_table: dict, soft_ctx: SoftContext):
         if not seg_o_table:
             return
