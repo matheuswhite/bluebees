@@ -14,7 +14,7 @@ Tasks:
     ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
     ✔ Check if hex string has some invalid character @started(19-05-18 19:28) @done(19-05-18 19:42) @lasted(14m8s)
     ☐ Check the cause of node not send all ack block
-    ☐ Add application and node to 'net_data' when 'add_appkey' command was called
+    ☐ Add application to 'net_data' when 'add_appkey' command was called
     ☐ Create a file to storage a group
       -- This file will contain a list of unicast address (node addr)
       -- When send a message to group address, check if src address, in response message, is within the group file
@@ -82,6 +82,4 @@ Tasks:
     ✔ Test the new implementation of req command @done(19-05-18 19:47)
     ✔ Test the new implementation of config command @done(19-05-18 19:45)
     ✔ Implement the real req command @started(19-05-22 10:26) @done(19-05-22 15:35) @lasted(5h9m19s)
-    ☐ Add the group address field to node_data
-      This field is list
     ☐ Implement the real config command
