@@ -55,8 +55,6 @@ class TransportLayer:
         result, mic = crypto.aes_ccm_complete(key=app_key, nonce=app_nonce,
                                               text=pdu, adata=b'', mic_size=4)
 
-        print(f'App_key: {app_key.hex()}, app_nonce: {app_nonce.hex()}, mic: {mic.hex()}, result (len {len(result)}: {result.hex()})')
-
         return result + mic
 
     def _unsegmented_transport_pdu(self, pdu: bytes,

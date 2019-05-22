@@ -4,6 +4,7 @@ from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
 from common.utils import check_hex_string
 from common.utils import FinishAsync
+from common.utils import run_seq
 import click
 import asyncio
 
@@ -75,10 +76,12 @@ def send(target, opcode, parameters):
                               is_devkey=is_devkey,
                               ack_timeout=30,
                               segment_timeout=10)
-        client_element.all_tasks += [client_element.send_message(
-            opcode=opcode, parameters=parameters, ctx=context)]
-        asyncio.gather(client_element.spwan_tasks(loop))
-        loop.run_forever()
+        run_seq_t = run_seq([
+            client_element.spwan_tasks(loop),
+            client_element.send_message(opcode=opcode, parameters=parameters,
+                                        ctx=context)
+        ])
+        loop.run_until_complete(run_seq_t)
     except FinishAsync:
         pass
     except KeyboardInterrupt:
@@ -93,3 +96,5 @@ def send(target, opcode, parameters):
         for t in tasks_running:
             t.cancel()
         loop.stop()
+
+# 4d096b543184ab000000000000000000000000

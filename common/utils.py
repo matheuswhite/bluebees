@@ -1,5 +1,14 @@
-def check_flag(flag, flag_set):
-    return flag[0] in flag_set or flag[1] in flag_set
+import asyncio
+
+
+async def run_seq(seq_tasks: list):
+    results = []
+    for t in seq_tasks:
+        t_h = asyncio.gather(t)
+        r = await t_h
+        results.append(r)
+        await asyncio.sleep(.5)
+    return results
 
 
 def check_hex_string(hex_str: str) -> bool:

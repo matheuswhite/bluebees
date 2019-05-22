@@ -4,6 +4,7 @@ from client.network.network_data import NetworkData
 from client.data_paths import base_dir, node_dir, app_dir, net_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
+from common.utils import run_seq
 import click
 import asyncio
 
@@ -24,16 +25,6 @@ def validate_app(ctx, param, value):
     return value
 
 
-async def run_seq(seq_tasks: list):
-    results = []
-    for t in seq_tasks:
-        t_h = asyncio.gather(t)
-        r = await t_h
-        results.append(r)
-        await asyncio.sleep(.5)
-    return results
-
-
 @click.command()
 @click.option('--target', '-t', type=str, default='', required=True,
               help='Specify the name of node target', callback=validate_target)
@@ -50,15 +41,13 @@ def add_appkey(target, app):
 
     net_key = int.from_bytes(net_data.key_index, 'big')
     app_key = int.from_bytes(app_data.key_index, 'big')
-    print(f'Net_key: {hex(net_key)}, App_key: {hex(app_key)}')
     key_index = (net_key | (app_key << 12)).to_bytes(3, 'big')[::-1]
-    print(f'Key index: {key_index.hex()}')
 
     opcode = b'\x00'
     r_opcode = b'\x80\x03'
     parameters = key_index + app_data.key
 
-    print(f'Key index: {key_index[::-1].hex()}, Appkey: {app_data.key.hex()}')
+    click.echo(click.style(f'parameters: {parameters.hex()}', fg='white'))
 
     try:
         loop = asyncio.get_event_loop()
@@ -79,7 +68,15 @@ def add_appkey(target, app):
                                         timeout=30)
         ])
         results = loop.run_until_complete(run_seq_t)
-        print(f'Receive message: {results[2]}')
+
+        content = results[2][0]
+        if content[0] == 0:
+            if content[1:] == key_index:
+                click.echo(click.style('App key add with successful', fg='green'))
+            else:
+                click.echo(click.style(f'Wrong key index: {content[1:].hex()}', fg='red'))
+        else:
+            click.echo(click.style(f'Fail. Error code: {content[0:1].hex()}', fg='red'))
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:

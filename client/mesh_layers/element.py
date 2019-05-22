@@ -100,6 +100,6 @@ class Element(Client):
             self.log.warning(f'The maximum time to receive a message with '
                              f'opcode equals to "{opcode}" was reached')
 
-        self.log.info(f'Content: {content.hex()}')
+        self.log.debug(f'Content: {content.hex()}')
 
         return content
