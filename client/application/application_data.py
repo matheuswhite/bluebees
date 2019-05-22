@@ -24,7 +24,7 @@ class ApplicationData(Serializable):
 
     def __repr__(self):
         return f'Name: {self.name}\nKey: {self.key.hex()}\n' \
-               f'Key Index: {self.key_index.hex()}\nNetwork: {self.network}\n' \
+               f'Key Index: {self.key_index.hex()}\nNetwork: {self.network}\n'\
                f'Nodes: {self.nodes}'
 
 

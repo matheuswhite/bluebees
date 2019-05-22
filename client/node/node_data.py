@@ -25,9 +25,9 @@ class NodeData(Serializable):
         self.apps = apps
 
     def __repr__(self):
-        return f'Name: {self.name}\nAddress: {self.addr}\n' \
-               f'Device UUID: {self.device_uuid}\n' \
-               f'Devkey: {self.devkey}\nNetwork: {self.network}\n' \
+        return f'Name: {self.name}\nAddress: {self.addr.hex()}\n' \
+               f'Device UUID: {self.device_uuid.hex()}\n' \
+               f'Devkey: {self.devkey.hex()}\nNetwork: {self.network}\n' \
                f'Apps: {self.apps}'
 
 

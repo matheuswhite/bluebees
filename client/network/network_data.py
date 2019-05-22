@@ -25,8 +25,8 @@ class NetworkData(Serializable):
         self.seq = seq
 
     def __repr__(self):
-        return f'Name: {self.name}\nKey: {self.key}\n' \
-               f'Key Index: {self.key_index}\nIV Index: {self.iv_index}\n' \
+        return f'Name: {self.name}\nKey: {self.key.hex()}\n' \
+               f'Key Index: {self.key_index.hex()}\nIV Index: {self.iv_index.hex()}\n' \
                f'Seq number: {0 if self.seq == -1 else self.seq}\n' \
                f'Applications: {self.apps}'
 
