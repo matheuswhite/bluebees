@@ -3,7 +3,6 @@ from client.data_paths import base_dir, node_dir
 from client.mesh_layers.mesh_context import SoftContext
 from client.mesh_layers.element import Element
 from common.utils import check_hex_string
-from common.utils import FinishAsync
 from common.utils import run_seq
 import click
 import asyncio
@@ -82,8 +81,6 @@ def send(target, opcode, parameters):
                                         ctx=context)
         ])
         loop.run_until_complete(run_seq_t)
-    except FinishAsync:
-        pass
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:

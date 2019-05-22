@@ -17,7 +17,7 @@ class NetworkLayer:
         self.recv_queue = recv_queue
 
         self.log = log_sys.get_logger('network_layer')
-        self.log.set_level(DEBUG)
+        self.log.set_level(INFO)
 
         # (transport_pdu: bytes, soft_ctx: SoftContext)
         self.transport_pdus = asyncio.Queue()

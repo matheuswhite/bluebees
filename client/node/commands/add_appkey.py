@@ -47,8 +47,6 @@ def add_appkey(target, app):
     r_opcode = b'\x80\x03'
     parameters = key_index + app_data.key
 
-    click.echo(click.style(f'parameters: {parameters.hex()}', fg='white'))
-
     try:
         loop = asyncio.get_event_loop()
         client_element = Element()
@@ -65,18 +63,25 @@ def add_appkey(target, app):
             client_element.send_message(opcode=opcode, parameters=parameters,
                                         ctx=context),
             client_element.recv_message(opcode=r_opcode, segment_timeout=10,
-                                        timeout=30)
+                                        timeout=30, ctx=context)
         ])
         results = loop.run_until_complete(run_seq_t)
 
         content = results[2][0]
         if content[0] == 0:
             if content[1:] == key_index:
-                click.echo(click.style('App key add with successful', fg='green'))
+                click.echo(click.style('App key add with successful',
+                                       fg='green'))
+                node_data.apps.append(app_data.name)
+                node_data.save()
+                app_data.nodes.append(node_data.name)
+                app_data.save()
             else:
-                click.echo(click.style(f'Wrong key index: {content[1:].hex()}', fg='red'))
+                click.echo(click.style(f'Wrong key index: {content[1:].hex()}',
+                                       fg='red'))
         else:
-            click.echo(click.style(f'Fail. Error code: {content[0:1].hex()}', fg='red'))
+            click.echo(click.style(f'Fail. Error code: {content[0:1].hex()}',
+                                   fg='red'))
     except KeyboardInterrupt:
         click.echo(click.style('Interruption by user', fg='yellow'))
     except RuntimeError:

@@ -41,7 +41,7 @@ class Element(Client):
             if addres_type(ctx.dst_addr) == UNASSIGNED_ADDRESS:
                 raise DstAddressError
 
-            check_opcode(opcode)
+            # check_opcode(opcode)
             check_parameters(opcode, parameters)
 
             pdu = opcode + parameters
@@ -63,10 +63,11 @@ class Element(Client):
             self.log.warning('Ack timeout')
 
     async def _recv_message_atomic(self, opcode: bytes,
-                                   segment_timeout: int) -> bytes:
+                                   segment_timeout: int,
+                                   ctx: SoftContext) -> bytes:
         while True:
             self.log.debug('Waiting message atomic...')
-            content, _ = await self.tr_layer.recv_pdu(segment_timeout)
+            content, _ = await self.tr_layer.recv_pdu(segment_timeout, ctx)
             if not content:
                 self.log.debug('No content')
                 continue
@@ -77,8 +78,8 @@ class Element(Client):
             if content[0:op_len] == opcode:
                 return content[op_len:]
 
-    async def recv_message(self, opcode: bytes, segment_timeout=10,
-                           timeout=30) -> bytes:
+    async def recv_message(self, opcode: bytes, ctx: SoftContext,
+                           segment_timeout=10, timeout=30) -> bytes:
         content = None
 
         self.log.debug('Start recv...')
@@ -88,7 +89,7 @@ class Element(Client):
             check_opcode(opcode)
             self.log.debug('Opcode is ok')
             content = await asyncio.wait_for(self._recv_message_atomic(
-                opcode, segment_timeout), timeout=timeout)
+                opcode, segment_timeout, ctx=ctx), timeout=timeout)
             self.log.debug('End receive')
         except OpcodeLengthError:
             self.log.error('Opcode length wrong')
