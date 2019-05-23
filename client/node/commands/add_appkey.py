@@ -57,8 +57,8 @@ def add_appkey(target, app):
                               network_name=node_data.network,
                               application_name=node_data.devkey,
                               is_devkey=True,
-                              ack_timeout=30,
-                              segment_timeout=10)
+                              ack_timeout=10,
+                              segment_timeout=3)
         run_seq_t = run_seq([
             client_element.spwan_tasks(loop),
             client_element.send_message(opcode=opcode, parameters=parameters,
@@ -81,13 +81,6 @@ def add_appkey(target, app):
                     if node_data.name not in app_data.nodes:
                         app_data.nodes.append(node_data.name)
                         app_data.save()
-
-                    if app_data.name not in net_data.apps:
-                        net_data = NetworkData.load(base_dir + net_dir +
-                                                    node_data.network +
-                                                    '.yml')
-                        net_data.apps.append(app_data.name)
-                        net_data.save()
                 else:
                     click.echo(click.style(f'Wrong key index: {content[1:].hex()}',
                                            fg='red'))

@@ -5,6 +5,9 @@ from client.application.application_data import ApplicationData
 from client.node.node_data import NodeData
 from client.data_paths import base_dir, net_dir, app_dir, node_dir
 from common.logging import log_sys, INFO, DEBUG
+from client.mesh_layers.address import address_type, UNICAST_ADDRESS, \
+                                       GROUP_ADDRESS
+from client.node.group_data import GroupData, find_group_by_addr
 from common.crypto import crypto
 from common.file import file_helper
 from typing import List
@@ -30,7 +33,7 @@ class TransportLayer:
         self.log = log_sys.get_logger('transport_layer')
         self.log.set_level(DEBUG)
 
-    # send methods
+    # * Send Methods
     def _encrypt_access_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
         net_data = NetworkData.load(base_dir + net_dir +
                                     soft_ctx.network_name + '.yml')
@@ -118,9 +121,26 @@ class TransportLayer:
 
         return segments
 
-    def __check_addresses(self, recv_ctx: SoftContext, ctx: SoftContext):
-        return (recv_ctx.src_addr == ctx.dst_addr) and \
-            (recv_ctx.dst_addr == ctx.src_addr)
+    # * Notes
+    # *  - In this implementation, all received message, with dst addr setted
+    # *  to a group address, will be discard
+    # *  - In this implementation, the nodes contains only one element
+    def __check_addresses(self, recv_ctx: SoftContext,
+                          ctx: SoftContext) -> bool:
+        if address_type(recv_ctx.dst_addr) == UNICAST_ADDRESS:
+            send_dst_type = address_type(ctx.dst_addr)
+            if send_dst_type == UNICAST_ADDRESS:
+                return (recv_ctx.dst_addr == ctx.src_addr) and \
+                    (recv_ctx.src_addr == ctx.dst_addr)
+            elif send_dst_type == GROUP_ADDRESS:
+                group = find_group_by_addr(ctx.dst_addr)
+                if not group:
+                    return False
+
+                return (recv_ctx.dst_addr == ctx.src_addr) and \
+                    (recv_ctx.src_addr in group.sub_addrs)
+        else:
+            return False
 
     async def _wait_ack(self, soft_ctx: SoftContext, segments: List[bytes]):
         ack_bits = 0
@@ -191,7 +211,7 @@ class TransportLayer:
             except asyncio.TimeoutError:
                 self.log.error('Wait ack timeout')
 
-    # receive methods
+    # * Receive Methods
     async def __send_ack(self, seg_o_table: dict, soft_ctx: SoftContext):
         if not seg_o_table:
             return
@@ -326,7 +346,7 @@ class TransportLayer:
 
             # not same src and dst address (discard)
             if not self.__check_addresses(r_ctx, soft_ctx):
-                self.log.warning('Not same address')
+                self.log.warning('Invalid address')
                 continue
 
             # each 10 messages received, sent a ack
@@ -403,6 +423,10 @@ class TransportLayer:
             self.log.warning(f'not soft ctx')
             return None, None
         r_ctx.node_name = self.__search_node_by_addr(r_ctx.src_addr)
+
+        if not self.__check_addresses(r_ctx, soft_ctx):
+            self.log.warning('Not same address')
+            return None, None
 
         try:
             self.log.debug(f'collect segments')

@@ -1,6 +1,6 @@
 from client.mesh_layers.transport_layer import TransportLayer, AckTimeout
 from client.mesh_layers.mesh_context import SoftContext
-from client.mesh_layers.address import addres_type, UNICAST_ADDRESS, \
+from client.mesh_layers.address import address_type, UNICAST_ADDRESS, \
                                        UNASSIGNED_ADDRESS
 from client.mesh_layers.access_layer import check_opcode, check_parameters, \
                                             OpcodeLengthError, \
@@ -36,9 +36,9 @@ class Element(Client):
     async def send_message(self, opcode: bytes, parameters: bytes,
                            ctx: SoftContext):
         try:
-            if addres_type(ctx.src_addr) != UNICAST_ADDRESS:
+            if address_type(ctx.src_addr) != UNICAST_ADDRESS:
                 raise SrcAddressError
-            if addres_type(ctx.dst_addr) == UNASSIGNED_ADDRESS:
+            if address_type(ctx.dst_addr) == UNASSIGNED_ADDRESS:
                 raise DstAddressError
 
             check_opcode(opcode)
