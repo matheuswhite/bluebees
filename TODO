@@ -13,7 +13,7 @@ Tasks:
     ✔ Send a close link on keyboard interrupt @started(19-05-15 11:04) @done(19-05-15 11:28) @lasted(24m40s)
     ✔ Change PyYAML by ruamel.yaml @done(19-05-15 15:09)
     ✔ Check if hex string has some invalid character @started(19-05-18 19:28) @done(19-05-18 19:42) @lasted(14m8s)
-    ✘ Check the cause of node not send all ack block @cancelled(19-05-22 20:01)
+    ☐ Check the cause of node not send all ack block
     ☐ Check why the microbit, sometimes, stop to respond
     ✔ Add application to 'net_data' when 'add_appkey' command was called @done(19-05-22 18:19)
     ☐ Create a file to storage a group
@@ -85,4 +85,6 @@ Tasks:
     ✔ Test the new implementation of req command @done(19-05-18 19:47)
     ✔ Test the new implementation of config command @done(19-05-18 19:45)
     ✔ Implement the real req command @started(19-05-22 10:26) @done(19-05-22 15:35) @lasted(5h9m19s)
+    ✔ Add validation of 'application' on post_cmd @done(19-05-23 16:18)
+    ✔ Add validation of 'tries' on post_cmd @done(19-05-23 16:18)
     ☐ Implement the real config command

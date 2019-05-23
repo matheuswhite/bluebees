@@ -140,6 +140,32 @@ def validate_single_cmd(file, index, value):
         raise click.BadParameter(f'On {file} file, the {index}{order(index)}'
                                  f' command not contains "parameters" keyword')
 
+    try:
+        application = value['application']
+        if type(application) != str:
+            raise click.BadParameter(f'On {file} file, the application of '
+                                     f'the {index}{order(index)} command '
+                                     f'must be a string')
+        elif not app_name_list() or application not in app_name_list():
+            raise click.BadParameter(f'On {file} file, the application of '
+                                     f'the {index}{order(index)} command '
+                                     f'not exist')
+    except KeyError:
+        pass
+
+    try:
+        tries = value['tries']
+        if type(tries) != int:
+            raise click.BadParameter(f'On {file} file, the tries of '
+                                     f'the {index}{order(index)} command '
+                                     f'must be a integer')
+        elif tries <= 0:
+            raise click.BadParameter(f'On {file} file, the tries of '
+                                     f'the {index}{order(index)} command '
+                                     f'must be non-zero and positive')
+    except KeyError:
+        pass
+
 
 def validate_post_cmds(value):
     file = file_helper.read(value)
@@ -370,12 +396,15 @@ async def config_task(target: str, client_element: Element, config: dict):
         for post_cmd in config['post_cmds']:
             file = file_helper.read(post_cmd)
             for cmd in file['commands']:
+                tries = cmd['tries'] if 'tries' in cmd.keys() else 1
+                application = cmd['application'] if \
+                    'application' in cmd.keys() else ''
                 for t in range(tries):
                     success = await send_cmd(client_element, target,
                                              bytes.fromhex(cmd['opcode']),
-                                             bytes.fromhex(cmd['parameters']))
-                    if success:
-                        break
+                                             bytes.fromhex(cmd['parameters']),
+                                             application)
+                    await asyncio.sleep(.1)
                 if not success:
                     click.echo(click.style(f'\nError on send cmd. cmd file: '
                                            f'{post_cmd}', fg='red'))
