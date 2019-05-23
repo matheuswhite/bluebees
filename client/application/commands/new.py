@@ -2,7 +2,8 @@ from Crypto.Random import get_random_bytes
 from client.application.application_data import ApplicationData, \
                                                 app_name_list, app_key_list, \
                                                 app_key_index_list
-from client.network.network_data import net_name_list
+from client.network.network_data import NetworkData, net_name_list
+from client.data_paths import base_dir, net_dir
 from common.file import file_helper
 from common.template import template_helper
 from common.utils import check_hex_string
@@ -75,21 +76,29 @@ def parse_template(ctx, param, value):
         raise click.BadParameter(f'File "{value}" not found')
 
     try:
-        name = template_helper.get_field(template, 'name')
+        name, name_is_seq = template_helper.get_field(template, 'name')
         validate_name(ctx, param, name)
     except KeyError:
         raise click.BadParameter(f'Field "name" not found in template file '
                                  f'"{value}"')
+    except click.BadParameter as bp:
+        if name_is_seq:
+            template_helper.update_sequence(template, 'name')
+        raise bp
 
     try:
-        network = template_helper.get_field(template, 'network')
+        network, net_is_seq = template_helper.get_field(template, 'network')
         validate_network(ctx, param, network)
     except KeyError:
         raise click.BadParameter(f'Field "network" not found in template file '
                                  f'"{value}"')
+    except click.BadParameter as bp:
+        if net_is_seq:
+            template_helper.update_sequence(template, 'network')
+        raise bp
 
     try:
-        key = template_helper.get_field(template, 'key')
+        key, _ = template_helper.get_field(template, 'key')
         validate_key(ctx, param, key)
     except KeyError:
         key = random_key()
@@ -108,6 +117,16 @@ def parse_template(ctx, param, value):
                                key_index=bytes.fromhex(key_index),
                                network=network)
     app_data.save()
+
+    net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
+    if app_data.name not in net_data.apps:
+        net_data.apps.append(app_data.name)
+    net_data.save()
+
+    if name_is_seq:
+        template_helper.update_sequence(template, 'name')
+    if net_is_seq:
+        template_helper.update_sequence(template, 'network')
 
     click.echo(click.style('A new application was created', fg='green'))
     click.echo(click.style(str(app_data), fg='green'))
@@ -143,6 +162,11 @@ def new(name, network, key, template):
                                key_index=bytes.fromhex(key_index),
                                network=network)
     app_data.save()
+
+    net_data = NetworkData.load(base_dir + net_dir + network + '.yml')
+    if app_data.name not in net_data.apps:
+        net_data.apps.append(app_data.name)
+    net_data.save()
 
     click.echo(click.style('A new application was created', fg='green'))
     click.echo(click.style(str(app_data), fg='green'))

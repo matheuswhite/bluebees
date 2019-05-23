@@ -63,14 +63,18 @@ def parse_template(ctx, param, value):
         raise click.BadParameter(f'File "{value}" not found')
 
     try:
-        name = template_helper.get_field(template, 'name')
+        name, name_is_seq = template_helper.get_field(template, 'name')
         validate_name(ctx, param, name)
     except KeyError:
         raise click.BadParameter(f'Field "name" not found in template file '
                                  f'"{value}"')
+    except click.BadParameter as bp:
+        if name_is_seq:
+            template_helper.update_sequence(template, 'name')
+        raise bp
 
     try:
-        key = template_helper.get_field(template, 'key')
+        key, _ = template_helper.get_field(template, 'key')
         validate_key(ctx, param, key)
     except KeyError:
         key = random_key()
@@ -89,6 +93,9 @@ def parse_template(ctx, param, value):
                            key_index=bytes.fromhex(key_index),
                            iv_index=bytes(4))
     net_data.save()
+
+    if name_is_seq:
+        template_helper.update_sequence(template, 'name')
 
     click.echo(click.style('A new network was created', fg='green'))
     click.echo(click.style(str(net_data), fg='green'))

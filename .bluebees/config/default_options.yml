@@ -1,4 +1,0 @@
-core:
-  run:
-    baudrate: 115200
-    serial_port: COM9

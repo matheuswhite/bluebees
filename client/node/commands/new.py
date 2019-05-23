@@ -7,7 +7,7 @@ from client.node.provisioner import Provisioner, LinkOpenError, \
 from common.file import file_helper
 from common.template import template_helper
 from common.utils import check_hex_string
-from client.mesh_layers.address import addres_type, UNICAST_ADDRESS
+from client.mesh_layers.address import address_type, UNICAST_ADDRESS
 import click
 import asyncio
 
@@ -46,7 +46,7 @@ def validate_addr(ctx, param, value):
         raise click.BadParameter('Bad formatting on address hex string')
     if len(value) != 4:
         raise click.BadParameter('The length of node address is 2 bytes')
-    if addres_type(bytes.fromhex(value)) != UNICAST_ADDRESS:
+    if address_type(bytes.fromhex(value)) != UNICAST_ADDRESS:
         raise click.BadParameter('The address must be a unicast address')
     return value
 
@@ -56,7 +56,7 @@ def random_addr():
 
     for x in range(2**16):
         addr = get_random_bytes(2)
-        if addr not in addr_list and addres_type(addr) == UNICAST_ADDRESS:
+        if addr not in addr_list and address_type(addr) == UNICAST_ADDRESS:
             return addr.hex()
 
     return None
@@ -116,27 +116,35 @@ def parse_template(ctx, param, value):
         raise click.BadParameter(f'File "{value}" not found')
 
     try:
-        name = template_helper.get_field(template, 'name')
+        name, name_is_seq = template_helper.get_field(template, 'name')
         validate_name(ctx, param, name)
     except KeyError:
         raise click.BadParameter(f'Field "name" not found in template file '
                                  f'"{value}"')
+    except click.BadParameter as bp:
+        if name_is_seq:
+            template_helper.update_sequence(template, 'name')
+        raise bp
 
     try:
-        network = template_helper.get_field(template, 'network')
+        network, net_is_seq = template_helper.get_field(template, 'network')
         validate_network(ctx, param, network)
     except KeyError:
         raise click.BadParameter(f'Field "network" not found in template file '
                                  f'"{value}"')
+    except click.BadParameter as bp:
+        if net_is_seq:
+            template_helper.update_sequence(template, 'network')
+        raise bp
 
     try:
-        uuid = template_helper.get_field(template, 'uuid')
+        uuid, _ = template_helper.get_field(template, 'uuid')
     except KeyError:
         raise click.BadParameter(f'Field "uuid" not found in template file '
                                  f'"{value}"')
 
     try:
-        address = template_helper.get_field(template, 'address')
+        address, _ = template_helper.get_field(template, 'address')
         validate_addr(ctx, param, address)
     except KeyError:
         address = random_addr()
@@ -158,6 +166,11 @@ def parse_template(ctx, param, value):
         node_data = NodeData(name=name, addr=address, network=network,
                              device_uuid=uuid, devkey=devkey)
         node_data.save()
+
+        if name_is_seq:
+            template_helper.update_sequence(template, 'name')
+        if net_is_seq:
+            template_helper.update_sequence(template, 'network')
 
         click.echo(click.style('A new node was created.', fg='green'))
         click.echo(click.style(str(node_data), fg='green'))

@@ -79,15 +79,15 @@ def parse_config(ctx, param, value):
             raise click.BadParameter(f'File "{value}" not found')
 
         try:
-            cfg['applications'] = template_helper.get_field(template,
-                                                            'applications')
+            cfg['applications'], _ = template_helper.get_field(template,
+                                                               'applications')
             for app in cfg['applications']:
                 validate_app(app)
         except KeyError:
             cfg['applications'] = []
 
         try:
-            cfg['models'] = template_helper.get_field(template, 'models')
+            cfg['models'], _ = template_helper.get_field(template, 'models')
             for model in cfg['models']:
                 validate_model(model)
         except KeyError:
