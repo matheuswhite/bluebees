@@ -56,7 +56,8 @@ def random_addr():
 
     for x in range(2**16):
         addr = get_random_bytes(2)
-        if addr not in addr_list and address_type(addr) == UNICAST_ADDRESS:
+        if addr not in addr_list and address_type(addr) == UNICAST_ADDRESS \
+           and addr != b'\x00\x01':
             return addr.hex()
 
     return None
