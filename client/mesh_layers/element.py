@@ -26,7 +26,7 @@ class Element(Client):
         super().__init__(sub_topic_list=[b'message'],
                          pub_topic_list=[b'message_s'])
         self.log = log_sys.get_logger('element')
-        self.log.set_level(DEBUG)
+        self.log.set_level(INFO)
 
         self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
                                        recv_queue=self.messages_received)

@@ -31,7 +31,7 @@ class TransportLayer:
                                       recv_queue=recv_queue)
 
         self.log = log_sys.get_logger('transport_layer')
-        self.log.set_level(DEBUG)
+        self.log.set_level(INFO)
 
     # * Send Methods
     def _encrypt_access_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
@@ -76,8 +76,6 @@ class TransportLayer:
 
         unseg_tr_pdu = (unseg_tr_pdu | (int.from_bytes(aid, 'big') & 0x3f)).to_bytes(1, 'big')
         unseg_tr_pdu += pdu
-
-        print(f'aid: {aid.hex()}, unseg_tr: {unseg_tr_pdu.hex()}')
 
         return unseg_tr_pdu
 

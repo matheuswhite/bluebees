@@ -1,5 +1,8 @@
 commands:
-  - opcode: '824502'
-    parameters: 0075
-  - opcode: '824503'
-    parameters: 0125
+  - opcode: 'C24502'
+    parameters: '0175'
+    application: 'street-light'
+    tries: 1
+  - opcode: 'C24503'
+    parameters: '0125'
+    tries: 3

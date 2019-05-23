@@ -1,0 +1,3 @@
+commands:
+  - opcode: '8203'
+    parameters: '01000000'
