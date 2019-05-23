@@ -2,8 +2,10 @@ applications:
   - street-light
 models:
   - id: '1000' # generic onoff server
+    publication: '4d54'
     application: street-light
   - id: '1002' # generic level server
+    subscription: ['4d54']
     application: street-light
 post_cmds:
   - templates/commands/turn_on.yml

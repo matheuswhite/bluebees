@@ -293,16 +293,65 @@ async def model_app_bind(client_element: Element, target: str, model_id: bytes,
 async def model_publication_set(client_element: Element, target: str,
                                 model_id: bytes, addr: bytes,
                                 application: str) -> bool:
-    await asyncio.sleep(1)
+    node_data = NodeData.load(base_dir + node_dir + target + '.yml')
+    app_data = ApplicationData.load(base_dir + app_dir + application + '.yml')
 
-    return True
+    key_index = app_data.key_index
+    default_ttl = b'\x07'
+    period = b'\x00'
+    default_xmit_int = b'\x40'
+
+    opcode = b'\x03'
+    r_opcode = b'\x80\x19'
+    parameters = node_data.addr[::-1] + addr[::-1] + key_index[::-1] + \
+        default_ttl[::-1] + period[::-1] + default_xmit_int[::-1] + \
+        model_id[::-1]
+
+    context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
+                          node_name=node_data.name,
+                          network_name=node_data.network,
+                          application_name=node_data.devkey,
+                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+
+    await client_element.send_message(opcode=opcode, parameters=parameters,
+                                      ctx=context)
+    r_content = await client_element.recv_message(opcode=r_opcode,
+                                                  segment_timeout=3,
+                                                  timeout=10, ctx=context)
+
+    if r_content:
+        if r_content[0] == 0 and r_content[1:] == parameters:
+            return True
+
+    return False
 
 
 async def model_subscription_add(client_element: Element, target: str,
                                  model_id: bytes, addr: bytes) -> bool:
-    await asyncio.sleep(1)
+    print(' sub')
+    node_data = NodeData.load(base_dir + node_dir + target + '.yml')
 
-    return True
+    opcode = b'\x80\x1b'
+    r_opcode = b'\x80\x1f'
+    parameters = node_data.addr[::-1] + addr[::-1] + model_id[::-1]
+
+    context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
+                          node_name=node_data.name,
+                          network_name=node_data.network,
+                          application_name=node_data.devkey,
+                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+
+    await client_element.send_message(opcode=opcode, parameters=parameters,
+                                      ctx=context)
+    r_content = await client_element.recv_message(opcode=r_opcode,
+                                                  segment_timeout=3,
+                                                  timeout=10, ctx=context)
+
+    if r_content:
+        if r_content[0] == 0 and r_content[1:] == parameters:
+            return True
+
+    return False
 
 
 async def send_cmd(client_element: Element, target: str, opcode: bytes,
@@ -379,6 +428,7 @@ async def config_task(target: str, client_element: Element, config: dict):
                 pbar.update(1)
 
             if 'subscription' in model:
+                print(len(model['subscription']))
                 for s in model['subscription']:
                     for t in range(tries):
                         success = await model_subscription_add(
@@ -387,8 +437,8 @@ async def config_task(target: str, client_element: Element, config: dict):
                         if success:
                             break
                     if not success:
-                        click.echo(click.style(f'\nError on model publication'
-                                               f' set. Model id: 0x'
+                        click.echo(click.style(f'\nError on model subscription'
+                                               f' add. Model id: 0x'
                                                f'{model["id"]}', fg='red'))
                         return None
                     pbar.update(1)

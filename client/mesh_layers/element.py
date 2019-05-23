@@ -26,7 +26,7 @@ class Element(Client):
         super().__init__(sub_topic_list=[b'message'],
                          pub_topic_list=[b'message_s'])
         self.log = log_sys.get_logger('element')
-        self.log.set_level(INFO)
+        self.log.set_level(DEBUG)
 
         self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
                                        recv_queue=self.messages_received)
@@ -74,7 +74,7 @@ class Element(Client):
             self.log.debug('Get opcode len')
             op_len = opcode_len(content[0:1])
             self.log.debug(f'Opcode len: {op_len}')
-            self.log.debug(f'Opcode: {content[0:op_len]}')
+            self.log.debug(f'Opcode: {content[0:op_len].hex()}')
             if content[0:op_len] == opcode:
                 return content[op_len:]
 
