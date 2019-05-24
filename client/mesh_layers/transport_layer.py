@@ -179,12 +179,13 @@ class TransportLayer:
                 bits = ack_bits
                 for i, seg in enumerate(segments):
                     if bits & 0x01 == 0:
-                        self.log.debug(f'Send segment: {i}')
+                        self.log.debug(f'Send segment: {i}|{seg.hex()}')
                         await self.net_layer.send_pdu(seg, soft_ctx)
                     bits = bits >> 1
                 self.log.debug(f'Ack bits [a]: {hex(ack_bits)}')
 
     async def send_pdu(self, access_pdu: bytes, soft_ctx: SoftContext):
+        success = False
         self.net_layer.hard_ctx.reset()
 
         crypt_access_pdu = self._encrypt_access_pdu(access_pdu, soft_ctx)
@@ -195,19 +196,25 @@ class TransportLayer:
             self.net_layer.hard_ctx.is_ctrl_msg = False
 
             await self.net_layer.send_pdu(transport_pdu, soft_ctx)
+
+            success = True
         else:
             segments = self._segmented_transport_pdu(crypt_access_pdu,
                                                      soft_ctx)
             self.net_layer.hard_ctx.is_ctrl_msg = False
 
-            for seg in segments:
+            for i, seg in enumerate(segments):
                 await self.net_layer.send_pdu(seg, soft_ctx)
+                self.log.debug(f'Send segment: {i}|{seg.hex()}')
 
             try:
                 await asyncio.wait_for(self._wait_ack(soft_ctx, segments),
                                        soft_ctx.ack_timeout)
+                success = True
             except asyncio.TimeoutError:
-                self.log.error('Wait ack timeout')
+                self.log.debug('Wait ack timeout')
+
+        return success
 
     # * Receive Methods
     async def __send_ack(self, seg_o_table: dict, soft_ctx: SoftContext):
@@ -324,7 +331,7 @@ class TransportLayer:
         self.log.debug(f'Access PDU: {access_pdu.hex()}, first seq: {hex(first_seq)}')
 
         if not mic_is_ok:
-            self.log.warning(f'Mic is wrong')
+            self.log.debug(f'Mic is wrong, pdu: {access_pdu.hex()}, seq: {hex(first_seq)}')
             return None
         else:
             return access_pdu
@@ -410,10 +417,11 @@ class TransportLayer:
             return access_pdu, r_ctx
 
         # segmented pdu
+        first_seq = self.net_layer.hard_ctx.seq
+        self.log.debug(f'First seq: {hex(first_seq)}')
+
         self.log.debug(f'Is segmented. PDU: {start_pdu.hex()}')
         self._fill_hard_ctx(start_pdu)
-
-        first_seq = self.net_layer.hard_ctx.seq
 
         self.log.debug(f'fill soft ctx')
         r_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=r_ctx)

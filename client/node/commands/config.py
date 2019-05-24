@@ -239,11 +239,15 @@ async def appkey_add(client_element: Element, target: str,
                           application_name=node_data.devkey,
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
-    await client_element.send_message(opcode=opcode, parameters=parameters,
-                                      ctx=context)
+    success = await client_element.send_message(opcode=opcode,
+                                                parameters=parameters,
+                                                ctx=context)
+    if not success:
+        return False
+
     r_content = await client_element.recv_message(opcode=r_opcode,
                                                   segment_timeout=3,
-                                                  timeout=10, ctx=context)
+                                                  timeout=9, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == key_index:
@@ -277,11 +281,15 @@ async def model_app_bind(client_element: Element, target: str, model_id: bytes,
                           application_name=node_data.devkey,
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
-    await client_element.send_message(opcode=opcode, parameters=parameters,
-                                      ctx=context)
+    success = await client_element.send_message(opcode=opcode,
+                                                parameters=parameters,
+                                                ctx=context)
+    if not success:
+        return False
+
     r_content = await client_element.recv_message(opcode=r_opcode,
                                                   segment_timeout=3,
-                                                  timeout=10, ctx=context)
+                                                  timeout=9, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -313,11 +321,15 @@ async def model_publication_set(client_element: Element, target: str,
                           application_name=node_data.devkey,
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
-    await client_element.send_message(opcode=opcode, parameters=parameters,
-                                      ctx=context)
+    success = await client_element.send_message(opcode=opcode,
+                                                parameters=parameters,
+                                                ctx=context)
+    if not success:
+        return False
+
     r_content = await client_element.recv_message(opcode=r_opcode,
                                                   segment_timeout=3,
-                                                  timeout=10, ctx=context)
+                                                  timeout=9, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -328,7 +340,6 @@ async def model_publication_set(client_element: Element, target: str,
 
 async def model_subscription_add(client_element: Element, target: str,
                                  model_id: bytes, addr: bytes) -> bool:
-    print(' sub')
     node_data = NodeData.load(base_dir + node_dir + target + '.yml')
 
     opcode = b'\x80\x1b'
@@ -341,11 +352,15 @@ async def model_subscription_add(client_element: Element, target: str,
                           application_name=node_data.devkey,
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
-    await client_element.send_message(opcode=opcode, parameters=parameters,
-                                      ctx=context)
+    success = await client_element.send_message(opcode=opcode,
+                                                parameters=parameters,
+                                                ctx=context)
+    if not success:
+        return False
+
     r_content = await client_element.recv_message(opcode=r_opcode,
                                                   segment_timeout=3,
-                                                  timeout=10, ctx=context)
+                                                  timeout=9, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -366,14 +381,14 @@ async def send_cmd(client_element: Element, target: str, opcode: bytes,
                           application_name=app_name,
                           is_devkey=False, ack_timeout=10, segment_timeout=3)
 
-    await client_element.send_message(opcode=opcode, parameters=parameters,
-                                      ctx=context)
-
-    return True
+    success = await client_element.send_message(opcode=opcode,
+                                                parameters=parameters,
+                                                ctx=context)
+    return success
 
 
 async def config_task(target: str, client_element: Element, config: dict):
-    tries = 1
+    tries = 3
     total_steps = len(config['applications'])
     for m in config['models']:
         total_steps += 1
@@ -428,7 +443,6 @@ async def config_task(target: str, client_element: Element, config: dict):
                 pbar.update(1)
 
             if 'subscription' in model:
-                print(len(model['subscription']))
                 for s in model['subscription']:
                     for t in range(tries):
                         success = await model_subscription_add(

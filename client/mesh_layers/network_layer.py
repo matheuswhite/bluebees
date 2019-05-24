@@ -7,6 +7,8 @@ from common.file import file_helper
 import asyncio
 
 
+# ! The SEQ number is different for each node
+# ! Each new provisioned node send message with SEQ start with zero
 class NetworkLayer:
 
     def __init__(self, send_queue, recv_queue):

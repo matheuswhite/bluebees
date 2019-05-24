@@ -26,7 +26,7 @@ class Element(Client):
         super().__init__(sub_topic_list=[b'message'],
                          pub_topic_list=[b'message_s'])
         self.log = log_sys.get_logger('element')
-        self.log.set_level(DEBUG)
+        self.log.set_level(INFO)
 
         self.tr_layer = TransportLayer(send_queue=self.messages_to_send,
                                        recv_queue=self.messages_received)
@@ -36,6 +36,8 @@ class Element(Client):
     async def send_message(self, opcode: bytes, parameters: bytes,
                            ctx: SoftContext):
         try:
+            success = False
+
             if address_type(ctx.src_addr) != UNICAST_ADDRESS:
                 raise SrcAddressError
             if address_type(ctx.dst_addr) == UNASSIGNED_ADDRESS:
@@ -46,7 +48,7 @@ class Element(Client):
 
             pdu = opcode + parameters
 
-            await self.tr_layer.send_pdu(pdu, ctx)
+            success = await self.tr_layer.send_pdu(pdu, ctx)
         except OpcodeLengthError:
             self.log.error('Opcode length wrong')
         except OpcodeReserved:
@@ -61,6 +63,8 @@ class Element(Client):
             self.log.error(f'The destination address cannot be 0x0000')
         except AckTimeout:
             self.log.warning('Ack timeout')
+        finally:
+            return success
 
     async def _recv_message_atomic(self, opcode: bytes,
                                    segment_timeout: int,
@@ -98,8 +102,8 @@ class Element(Client):
         except OpcodeBadFormat:
             self.log.error('Opcode bad format')
         except asyncio.TimeoutError:
-            self.log.warning(f'The maximum time to receive a message with '
-                             f'opcode equals to "{opcode}" was reached')
+            self.log.debug(f'The maximum time to receive a message with '
+                           f'opcode equals to "{opcode.hex()}" was reached')
 
         if content:
             self.log.debug(f'Content: {content.hex()}')

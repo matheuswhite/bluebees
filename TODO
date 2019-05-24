@@ -15,6 +15,7 @@ Tasks:
     ✔ Check if hex string has some invalid character @started(19-05-18 19:28) @done(19-05-18 19:42) @lasted(14m8s)
     ☐ Check the cause of node not send all ack block
     ☐ Check why the microbit, sometimes, stop to respond
+    ☐ Check seq number in receive messages on network layer
     ✔ Add application to 'net_data' when 'add_appkey' command was called @done(19-05-22 18:19)
     ☐ Create a file to storage a group
       -- This file will contain a list of unicast address (node addr)
@@ -26,7 +27,7 @@ Tasks:
     ✔ Create a logging system @started(19-05-12 16:55) @done(19-05-12 17:25) @lasted(30m58s)
     ☐ Change print for logger
     ✔ Add check address in node creation @started(19-05-22 18:21) @done(19-05-22 18:28) @lasted(7m35s)
-    ✘ Send a reset to dongle every time the 'core run' command is executed @cancelled(19-05-22 20:02)
+    ☐ Send a reset to dongle every time the 'core run' command is executed
     ☐ Add the flag '--log' to enable command write a log file
       This flag will be passed by context
     ☐ Add the flag '--log-dir PATH' to specify the path where the command will store the log
@@ -87,4 +88,4 @@ Tasks:
     ✔ Implement the real req command @started(19-05-22 10:26) @done(19-05-22 15:35) @lasted(5h9m19s)
     ✔ Add validation of 'application' on post_cmd @done(19-05-23 16:18)
     ✔ Add validation of 'tries' on post_cmd @done(19-05-23 16:18)
-    ☐ Implement the real config command
+    ✔ Implement the real config command @done(19-05-23 21:06)
