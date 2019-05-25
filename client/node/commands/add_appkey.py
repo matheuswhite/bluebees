@@ -55,7 +55,7 @@ def add_appkey(target, app):
                               dst_addr=node_data.addr,
                               node_name=node_data.name,
                               network_name=node_data.network,
-                              application_name=node_data.devkey,
+                              application_name='',
                               is_devkey=True,
                               ack_timeout=10,
                               segment_timeout=3)

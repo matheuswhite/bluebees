@@ -236,7 +236,7 @@ async def appkey_add(client_element: Element, target: str,
     context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
                           node_name=node_data.name,
                           network_name=node_data.network,
-                          application_name=node_data.devkey,
+                          application_name='',
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
@@ -278,7 +278,7 @@ async def model_app_bind(client_element: Element, target: str, model_id: bytes,
     context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
                           node_name=node_data.name,
                           network_name=node_data.network,
-                          application_name=node_data.devkey,
+                          application_name='',
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
@@ -318,7 +318,7 @@ async def model_publication_set(client_element: Element, target: str,
     context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
                           node_name=node_data.name,
                           network_name=node_data.network,
-                          application_name=node_data.devkey,
+                          application_name='',
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
@@ -349,7 +349,7 @@ async def model_subscription_add(client_element: Element, target: str,
     context = SoftContext(src_addr=b'\x00\x01', dst_addr=node_data.addr,
                           node_name=node_data.name,
                           network_name=node_data.network,
-                          application_name=node_data.devkey,
+                          application_name='',
                           is_devkey=True, ack_timeout=10, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,

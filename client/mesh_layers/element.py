@@ -19,7 +19,6 @@ class DstAddressError(Exception):
     pass
 
 
-# ! Check the byte order in this layer
 class Element(Client):
 
     def __init__(self):

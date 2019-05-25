@@ -7,7 +7,7 @@ from client.data_paths import base_dir, net_dir, app_dir, node_dir
 from common.logging import log_sys, INFO, DEBUG
 from client.mesh_layers.address import address_type, UNICAST_ADDRESS, \
                                        GROUP_ADDRESS
-from client.node.group_data import GroupData, find_group_by_addr
+from client.node.group_data import find_group_by_addr
 from common.crypto import crypto
 from common.file import file_helper
 from typing import List
@@ -74,7 +74,8 @@ class TransportLayer:
             aid = crypto.k4(n=node_data.devkey)
             unseg_tr_pdu = 0x00
 
-        unseg_tr_pdu = (unseg_tr_pdu | (int.from_bytes(aid, 'big') & 0x3f)).to_bytes(1, 'big')
+        unseg_tr_pdu = (unseg_tr_pdu | (int.from_bytes(aid, 'big') &
+                        0x3f)).to_bytes(1, 'big')
         unseg_tr_pdu += pdu
 
         return unseg_tr_pdu
@@ -230,7 +231,8 @@ class TransportLayer:
             self.log.debug(f'block ack: {block_ack}, k: {k}')
         pdu += block_ack.to_bytes(4, 'big')
 
-        self.log.debug(f'Ack seq zero: {hex(self.net_layer.hard_ctx.seq_zero)}')
+        self.log.debug(f'Ack seq zero: '
+                       f'{hex(self.net_layer.hard_ctx.seq_zero)}')
         self.net_layer.hard_ctx.is_ctrl_msg = True
         await self.net_layer.send_pdu(pdu, soft_ctx)
 
@@ -297,7 +299,8 @@ class TransportLayer:
             encrypted_pdu = pdu[0:-8]
             transport_mic = pdu[-8:]
 
-        self.log.debug(f'Encrypted pdu: {encrypted_pdu.hex()}, mic = {transport_mic.hex()}')
+        self.log.debug(f'Encrypted pdu: {encrypted_pdu.hex()}, mic = '
+                       f'{transport_mic.hex()}')
 
         net_data = NetworkData.load(base_dir + net_dir + ctx.network_name +
                                     '.yml')
@@ -328,10 +331,12 @@ class TransportLayer:
                                                        text=encrypted_pdu,
                                                        mic=transport_mic)
 
-        self.log.debug(f'Access PDU: {access_pdu.hex()}, first seq: {hex(first_seq)}')
+        self.log.debug(f'Access PDU: {access_pdu.hex()}, first seq: '
+                       f'{hex(first_seq)}')
 
         if not mic_is_ok:
-            self.log.debug(f'Mic is wrong, pdu: {access_pdu.hex()}, seq: {hex(first_seq)}')
+            self.log.debug(f'Mic is wrong, pdu: {access_pdu.hex()}, seq: '
+                           f'{hex(first_seq)}')
             return None
         else:
             return access_pdu
@@ -396,62 +401,72 @@ class TransportLayer:
         while self.net_layer.hard_ctx.is_ctrl_msg:
             start_pdu, r_ctx = await self.net_layer.transport_pdus.get()
 
-        # unsegmented pdu
         self.log.debug('Testing if is segmented...')
         if ((start_pdu[0] & 0x80) >> 7) == 0:
+            # unsegmented pdu
             self.log.debug(f'Is unsegmented. PDU: {start_pdu.hex()}')
+
+            # filling soft context
             r_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=r_ctx)
             if not r_ctx:
                 return None, None
-            r_ctx.node_name = self.__search_node_by_addr(r_ctx.src_addr)
 
+            # checking addresses
             if not self.__check_addresses(r_ctx, soft_ctx):
                 self.log.warning('Not same address')
                 return None, None
 
-            start_pdu = start_pdu[1:]
+            # decrypting pdu
             self.log.debug('Start decrypting...')
-            access_pdu = self._decrypt_transport_pdu(start_pdu, r_ctx, self.net_layer.hard_ctx.seq)
+            access_pdu = self._decrypt_transport_pdu(
+                start_pdu[1:], r_ctx, self.net_layer.hard_ctx.seq)
             self.log.debug('End decrypt')
+            if not access_pdu:
+                return None, None
+        else:
+            # segmented pdu
 
-            return access_pdu, r_ctx
+            # store the seq number of first segment
+            first_seq = self.net_layer.hard_ctx.seq
+            self.log.debug(f'First seq: {hex(first_seq)}')
 
-        # segmented pdu
-        first_seq = self.net_layer.hard_ctx.seq
-        self.log.debug(f'First seq: {hex(first_seq)}')
+            # filling hard context
+            self.log.debug(f'Is segmented. PDU: {start_pdu.hex()}')
+            self._fill_hard_ctx(start_pdu)
 
-        self.log.debug(f'Is segmented. PDU: {start_pdu.hex()}')
-        self._fill_hard_ctx(start_pdu)
+            # filling soft context
+            self.log.debug(f'fill soft ctx')
+            r_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=r_ctx)
+            if not r_ctx:
+                self.log.warning(f'not soft ctx')
+                return None, None
 
-        self.log.debug(f'fill soft ctx')
-        r_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=r_ctx)
-        if not r_ctx:
-            self.log.warning(f'not soft ctx')
-            return None, None
-        r_ctx.node_name = self.__search_node_by_addr(r_ctx.src_addr)
+            # checking addresses
+            if not self.__check_addresses(r_ctx, soft_ctx):
+                self.log.warning('Not same address')
+                return None, None
 
-        if not self.__check_addresses(r_ctx, soft_ctx):
-            self.log.warning('Not same address')
-            return None, None
+            # collecting segments
+            try:
+                self.log.debug(f'collect segments')
+                sorted_segments = \
+                    await asyncio.wait_for(self._collect_segments(soft_ctx),
+                                           segment_timeout)
+            except Exception as e:
+                raise e
+            except asyncio.TimeoutError:
+                self.log.warning('Giving up of segmented message')
 
-        try:
-            self.log.debug(f'collect segments')
-            sorted_segments = \
-                await asyncio.wait_for(self._collect_segments(soft_ctx),
-                                       segment_timeout)
-        except Exception as e:
-            raise e
-        except asyncio.TimeoutError:
-            self.log.warning('Giving up of segmented message')
+            # join segments
+            self.log.debug(f'join segments')
+            transport_pdu = self._join_segments([start_pdu] + sorted_segments)
 
-        self.log.debug(f'join segments')
-        transport_pdu = self._join_segments([start_pdu] + sorted_segments)
-
-        self.log.debug(f'decryption pdu')
-        access_pdu = self._decrypt_transport_pdu(transport_pdu, r_ctx,
-                                                 first_seq)
-        if not access_pdu:
-            return None, None
+            # decrypting pdu
+            self.log.debug(f'decryption pdu')
+            access_pdu = self._decrypt_transport_pdu(transport_pdu, r_ctx,
+                                                     first_seq)
+            if not access_pdu:
+                return None, None
 
         self.log.debug(f'ret pdu')
-        return access_pdu, soft_ctx
+        return access_pdu, r_ctx
