@@ -9,6 +9,7 @@ from client.mesh_layers.access_layer import check_opcode, check_parameters, \
 from common.logging import log_sys, INFO, DEBUG
 from common.client import Client
 import asyncio
+import traceback
 
 
 class SrcAddressError(Exception):
@@ -62,6 +63,8 @@ class Element(Client):
             self.log.error(f'The destination address cannot be 0x0000')
         except AckTimeout:
             self.log.warning('Ack timeout')
+        # except Exception:
+        #     self.log.error(traceback.format_exc())
         finally:
             return success
 

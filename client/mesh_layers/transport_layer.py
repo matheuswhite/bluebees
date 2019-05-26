@@ -37,7 +37,9 @@ class TransportLayer:
     def _encrypt_access_pdu(self, pdu: bytes, soft_ctx: SoftContext) -> bytes:
         net_data = NetworkData.load(base_dir + net_dir +
                                     soft_ctx.network_name + '.yml')
-        self.net_layer.hard_ctx.seq = net_data.seq
+        node_data = NodeData.load(base_dir + node_dir + soft_ctx.node_name +
+                                  '.yml')
+        self.net_layer.hard_ctx.seq = node_data.seq
 
         if not soft_ctx.is_devkey:
             app_data = ApplicationData.load(base_dir + app_dir +
@@ -84,8 +86,10 @@ class TransportLayer:
                                          seg_o: int) -> bytes:
         net_data = NetworkData.load(base_dir + net_dir +
                                     soft_ctx.network_name + '.yml')
+        node_data = NodeData.load(base_dir + node_dir + soft_ctx.node_name +
+                                  '.yml')
         seq_auth = (int.from_bytes(net_data.iv_index, 'big') << 24) | \
-            net_data.seq
+            node_data.seq
         self.net_layer.hard_ctx.seq_zero = seq_auth & 0x1fff
 
         first_byte = 0x80
@@ -187,7 +191,6 @@ class TransportLayer:
 
     async def send_pdu(self, access_pdu: bytes, soft_ctx: SoftContext):
         success = False
-        self.net_layer.hard_ctx.reset()
 
         crypt_access_pdu = self._encrypt_access_pdu(access_pdu, soft_ctx)
 
@@ -308,7 +311,7 @@ class TransportLayer:
         if ctx.is_devkey:
             self.log.debug(f'Using devkey, node name [{ctx.node_name}]')
             if not ctx.node_name:
-                self.log.warning('No node found')
+                self.log.debug('No node found')
                 return None
 
             node_data = NodeData.load(base_dir + node_dir + ctx.node_name +
@@ -351,12 +354,12 @@ class TransportLayer:
 
             seq_zero = (int.from_bytes(pdu[1:3], 'big') & 0x7ffc) >> 2
             if seq_zero != self.net_layer.hard_ctx.seq_zero:
-                self.log.warning('Seq zero diff')
+                self.log.debug('Seq zero diff')
                 continue
 
             # not same src and dst address (discard)
             if not self.__check_addresses(r_ctx, soft_ctx):
-                self.log.warning('Invalid address')
+                self.log.debug('Invalid address')
                 continue
 
             # each 10 messages received, sent a ack
@@ -368,18 +371,18 @@ class TransportLayer:
 
             # control message (discard)
             if self.net_layer.hard_ctx.is_ctrl_msg:
-                self.log.warning('Control message')
+                self.log.debug('Control message')
                 continue
 
             # unsegmented pdu (discard)
             if ((pdu[0] & 0x80) >> 7) == 0:
-                self.log.warning('unsegmented pdu')
+                self.log.debug('unsegmented pdu')
                 continue
 
             seg_o = (int.from_bytes(pdu[2:4], 'big') & 0x03e0) >> 5
             # segment already received (discard)
             if seg_o in seg_o_table.keys():
-                self.log.warning('unsegmented pdu')
+                self.log.debug('unsegmented pdu')
                 continue
 
             self.log.debug('correct segment')
@@ -413,7 +416,7 @@ class TransportLayer:
 
             # checking addresses
             if not self.__check_addresses(r_ctx, soft_ctx):
-                self.log.warning('Not same address')
+                self.log.debug('Not same address')
                 return None, None
 
             # decrypting pdu
@@ -438,12 +441,12 @@ class TransportLayer:
             self.log.debug(f'fill soft ctx')
             r_ctx = self._fill_soft_ctx(start_pdu=start_pdu, ctx=r_ctx)
             if not r_ctx:
-                self.log.warning(f'not soft ctx')
+                self.log.debug(f'not soft ctx')
                 return None, None
 
             # checking addresses
             if not self.__check_addresses(r_ctx, soft_ctx):
-                self.log.warning('Not same address')
+                self.log.debug('Not same address')
                 return None, None
 
             # collecting segments
@@ -455,7 +458,7 @@ class TransportLayer:
             except Exception as e:
                 raise e
             except asyncio.TimeoutError:
-                self.log.warning('Giving up of segmented message')
+                self.log.debug('Giving up of segmented message')
 
             # join segments
             self.log.debug(f'join segments')

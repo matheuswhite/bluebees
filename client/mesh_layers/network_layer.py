@@ -15,7 +15,6 @@ class NetworkLayer:
     def __init__(self, send_queue, recv_queue):
         self.hard_ctx = HardContext(seq=0, ttl=7, is_ctrl_msg=True,
                                     seq_zero=0, seg_o=0, seg_n=0, szmic=0)
-        self.hard_ctx.reset()
         self.send_queue = send_queue
         self.recv_queue = recv_queue
 

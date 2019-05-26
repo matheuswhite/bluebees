@@ -4,6 +4,7 @@ from dataclasses import dataclass
 @dataclass
 class HardContext:
     seq: int
+    ttl: int
     is_ctrl_msg: bool
     seq_zero: int
     seg_o: int
