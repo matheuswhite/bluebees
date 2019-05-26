@@ -1,6 +1,6 @@
 # BlueeBees
 
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
+![GitHub](https://img.shields.io/github/license/matheuswhite/bluebees.svg?style=popout)
 [![Build Status](https://travis-ci.org/matheuswhite/bluebees.svg?branch=master)](https://travis-ci.org/matheuswhite/bluebees)
 [![Requirements Status](https://requires.io/github/matheuswhite/bluebees/requirements.svg?branch=master)](https://requires.io/github/matheuswhite/bluebees/requirements/?branch=master)
 [![codecov](https://codecov.io/gh/matheuswhite/bluebees/branch/master/graph/badge.svg)](https://codecov.io/gh/matheuswhite/bluebees)
