@@ -9,7 +9,7 @@ class AddressLengthError(Exception):
     pass
 
 
-def addres_type(address: bytes) -> int:
+def address_type(address: bytes) -> int:
     if len(address) != 2:
         raise AddressLengthError
 

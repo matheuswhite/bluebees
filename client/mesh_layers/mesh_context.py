@@ -5,19 +5,11 @@ from dataclasses import dataclass
 class HardContext:
     seq: int
     ttl: int
-    is_crtl_msg: bool
+    is_ctrl_msg: bool
     seq_zero: int
     seg_o: int
     seg_n: int
     szmic: int
-
-    def reset(self):
-        self.ttl = 3
-        self.is_ctrl_msg = True
-        self.seq_zero = 0
-        self.seg_o = 0
-        self.seg_n = 0
-        self.szmic = 0
 
 
 @dataclass

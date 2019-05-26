@@ -1,4 +1,4 @@
-from clint.textui import colored
+import click
 import datetime
 
 
@@ -33,32 +33,32 @@ class Logger:
 
     def debug(self, message: str):
         if self.level <= DEBUG:
-            print(colored.cyan(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                               f'{message}'))
+            click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                                   f'{message}', fg='cyan'))
 
     def info(self, message: str):
         if self.level <= INFO:
-            print(colored.white(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                                f'{message}'))
+            click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                                   f'{message}', fg='white'))
 
     def warning(self, message: str):
         if self.level <= WARNING:
-            print(colored.yellow(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                                 f'{message}'))
+            click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                                   f'{message}', fg='yellow'))
 
     def error(self, message: str):
         if self.level <= ERROR:
-            print(colored.red(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                              f'{message}'))
+            click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                                   f'{message}', fg='red'))
 
     def critical(self, message: str):
         if self.level <= CRITICAL:
-            print(colored.magenta(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                                  f'{message}'))
+            click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                                   f'{message}', fg='magenta'))
 
     def success(self, message: str):
-        print(colored.green(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
-                            f'{message}'))
+        click.echo(click.style(f'[{datetime.datetime.now().strftime(self.time_fmt)}][{self.name}] '
+                               f'{message}', fg='green'))
 
 
 log_sys = LoggingSystem()

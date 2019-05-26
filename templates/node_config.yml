@@ -1,0 +1,15 @@
+applications:
+  - street-light
+models:
+  - id: '1000' # generic onoff server
+    publication: '6933'
+    subscription: ['C933']
+    application: street-light
+  - id: '1002' # generic level server
+    publication: '6933'
+    subscription: ['C934']
+    application: street-light
+post_cmds:
+  - templates/commands/turn_on.yml
+
+# 0033697e090210

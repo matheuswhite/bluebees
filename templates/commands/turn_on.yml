@@ -1,0 +1,5 @@
+commands:
+  - opcode: '8203'
+    parameters: '01000000'
+    application: 'street-light'
+    tries: 2

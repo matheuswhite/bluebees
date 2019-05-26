@@ -23,8 +23,8 @@ class ApplicationData(Serializable):
         self.nodes = nodes
 
     def __repr__(self):
-        return f'Name: {self.name}\nKey: {self.key}\n' \
-               f'Key Index: {self.key_index}\nNetwork: {self.network}\n' \
+        return f'Name: {self.name}\nKey: {self.key.hex()}\n' \
+               f'Key Index: {self.key_index.hex()}\nNetwork: {self.network}\n'\
                f'Nodes: {self.nodes}'
 
 

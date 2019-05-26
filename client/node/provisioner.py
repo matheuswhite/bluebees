@@ -8,6 +8,7 @@ from common.crypto import crypto
 from Crypto.Random import get_random_bytes
 from typing import List
 from common.logging import log_sys, INFO, DEBUG
+from tqdm import tqdm
 import asyncio
 
 
@@ -445,8 +446,8 @@ class Provisioner(Client):
     # distribuition of provisioning data phase
     def _mount_data_pdu(self) -> bytes:
         prov_input = self.prov_ctx.confirmation_salt + \
-                     self.prov_ctx.random_provisioner + \
-                     self.prov_ctx.random_device
+            self.prov_ctx.random_provisioner + \
+            self.prov_ctx.random_device
 
         prov_data = self.device_info.netkey + self.device_info.key_index + \
             self.device_info.flags + self.device_info.iv_index + \
@@ -503,107 +504,110 @@ class Provisioner(Client):
             self.log.error('Link open fail')
             raise LinkOpenError
 
-        # invitation phase
-        self.log.info('Running step [1/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='invite',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_invite_pdu)
-        if not success:
-            self.log.error('Step [1/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+        with tqdm(range(11)) as pbar:
+            # invitation phase
+            success = await self._send_pdu(tries=10, phase_name='invite',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_invite_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [2/11] ...')
-        success = await self._wait_pdu(ack_tries=3, phase_name='capabilities',
-                                       timeout=30,
-                                       check_pdu_func=self._check_capabilities_pdu)
-        if not success:
-            self.log.error('Step [2/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._wait_pdu(ack_tries=3, phase_name='capabilities',
+                                           timeout=30,
+                                           check_pdu_func=self._check_capabilities_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        # exchanging public keys phase
-        self.log.info('Running step [3/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='start',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_start_pdu)
-        if not success:
-            self.log.error('Step [3/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            # exchanging public keys phase
+            pbar.update(1)
+            success = await self._send_pdu(tries=10, phase_name='start',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_start_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [4/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='exchange keys',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_public_key_pdu)
-        if not success:
-            self.log.error('Step [4/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._send_pdu(tries=10, phase_name='exchange keys',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_public_key_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [5/11] ...')
-        success = await self._wait_pdu(ack_tries=3, phase_name='exchange keys',
-                                       timeout=30,
-                                       check_pdu_func=self._check_public_key_pdu)
-        if not success:
-            self.log.error('Step [5/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._wait_pdu(ack_tries=3, phase_name='exchange keys',
+                                           timeout=30,
+                                           check_pdu_func=self._check_public_key_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        # authentication phase
-        self.log.info('Running step [6/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='confirmation',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_confirmation_pdu)
-        if not success:
-            self.log.error('Step [6/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            # authentication phase
+            pbar.update(1)
+            success = await self._send_pdu(tries=10, phase_name='confirmation',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_confirmation_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [7/11] ...')
-        success = await self._wait_pdu(ack_tries=3, phase_name='confirmation',
-                                       timeout=30,
-                                       check_pdu_func=self._check_confirmation_pdu)
-        if not success:
-            self.log.error('Step [7/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._wait_pdu(ack_tries=3, phase_name='confirmation',
+                                           timeout=30,
+                                           check_pdu_func=self._check_confirmation_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [8/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='random',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_random_pdu)
-        if not success:
-            self.log.error('Step [8/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._send_pdu(tries=10, phase_name='random',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_random_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [9/11] ...')
-        success = await self._wait_pdu(ack_tries=3, phase_name='random',
-                                       timeout=30,
-                                       check_pdu_func=self._check_random_pdu)
-        if not success:
-            self.log.error('Step [9/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._wait_pdu(ack_tries=3, phase_name='random',
+                                           timeout=30,
+                                           check_pdu_func=self._check_random_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        # distribuition of provisioning data phase
-        self.log.info('Running step [10/11] ...')
-        success = await self._send_pdu(tries=10, phase_name='data',
-                                       total_timeout=30,
-                                       mount_pdu_func=self._mount_data_pdu)
-        if not success:
-            self.log.error('Step [10/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            # distribuition of provisioning data phase
+            pbar.update(1)
+            success = await self._send_pdu(tries=10, phase_name='data',
+                                           total_timeout=30,
+                                           mount_pdu_func=self._mount_data_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        self.log.info('Running step [11/11] ...')
-        success = await self._wait_pdu(ack_tries=3, phase_name='complete',
-                                       timeout=30,
-                                       check_pdu_func=self._check_complete_pdu)
-        if not success:
-            self.log.error('Step [11/11] FAIL')
-            await self.close_link(b'\x01')  # timeout
-            raise ProvisioningError
+            pbar.update(1)
+            success = await self._wait_pdu(ack_tries=3, phase_name='complete',
+                                           timeout=30,
+                                           check_pdu_func=self._check_complete_pdu)
+            if not success:
+                self.log.error('FAIL')
+                await self.close_link(b'\x01')  # timeout
+                raise ProvisioningError
 
-        raise ProvisioningSuccess
+            await self.close_link(b'\x00')
+
+            pbar.update(1)
+            raise ProvisioningSuccess

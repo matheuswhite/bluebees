@@ -1,6 +1,7 @@
 from common.file import file_helper
-from common.utils import find_key
+from client.data_paths import base_dir, config_dir
 from random import randint
+from typing import Any
 import re
 
 
@@ -9,11 +10,8 @@ class TemplateHelper:
     def __init__(self):
         self._random_pattern = r'\\d|\\h|\\c|\\a|\\A|\\t'
         self._sequence_pattern = r'\\s|\\S'
-        self._sequences_filename = 'seq.yml'
+        self._sequences_filename = base_dir + config_dir + 'seq.yml'
         self._sequences = file_helper.load(self._sequences_filename, {})
-
-    def _update_file(self):
-        file_helper.write(self._sequences_filename, self._sequences)
 
     def _change_random(self, field_value: str):
         while True:
@@ -43,38 +41,54 @@ class TemplateHelper:
         return field_value
 
     def _change_sequence(self, field_value: str):
-        try:
-            pattern = field_value
-            pattern = pattern.replace('\\s', '')
-            pattern = pattern.replace('\\S', '')
+        pattern = field_value
+        pattern = pattern.replace('\\s', '')
+        pattern = pattern.replace('\\S', '')
 
-            seq = self._sequences[pattern]
-            field_value = field_value.replace('\\s', str(seq))
-            field_value = field_value.replace('\\S', format(seq, 'x'))
-            self._sequences[pattern] += 1
-
-            self._update_file()
-
-            return field_value
-        except KeyError:
+        if pattern not in self._sequences.keys():
             self._sequences[pattern] = 0
-            return self._change_sequence(field_value)
 
-    def get_field(self, template, field_name):
+        seq = self._sequences[pattern]
+        field_value = field_value.replace('\\s', str(seq))
+        field_value = field_value.replace('\\S', format(seq, 'x'))
+
+        return field_value
+
+    def update_sequence(self, template, field_name):
+        field_raw_value = template[field_name]
+
+        if type(field_raw_value) != str:
+            return None
+
+        if re.findall(self._sequence_pattern, field_raw_value):
+            try:
+                pattern = field_raw_value
+                pattern = pattern.replace('\\s', '')
+                pattern = pattern.replace('\\S', '')
+
+                self._sequences[pattern] += 1
+            except KeyError:
+                self._sequences[pattern] = 0
+            finally:
+                file_helper.write(self._sequences_filename, self._sequences)
+
+    def get_field(self, template, field_name) -> (Any, bool):
         field_raw_value = template[field_name]
         field_value = field_raw_value
+        is_seq = False
 
         if type(field_raw_value) != str and type(field_raw_value) != bytes:
-            return field_value
+            return field_value, is_seq
 
         if re.findall(self._random_pattern, field_raw_value):
             field_value = self._change_random(field_raw_value)
         elif re.findall(self._sequence_pattern, field_raw_value):
             field_value = self._change_sequence(field_raw_value)
+            is_seq = True
         elif re.findall(r'\\', field_raw_value):
             raise Exception(f'Symbol unknown')
 
-        return field_value
+        return field_value, is_seq
 
 
 template_helper = TemplateHelper()

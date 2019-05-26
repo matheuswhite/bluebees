@@ -21,7 +21,7 @@ def check_opcode(opcode: bytes):
         raise OpcodeLengthError
 
     opcode_int = opcode[0]
-    prefix = (opcode_int & 0xC0) >> 7
+    prefix = (opcode_int & 0xC0) >> 6
 
     if opcode_int == 0x3f:
         raise OpcodeReserved
@@ -34,7 +34,7 @@ def check_opcode(opcode: bytes):
 
 
 def opcode_len(opcode: bytes) -> int:
-    prefix = (opcode[0] & 0xC0) >> 7
+    prefix = (opcode[0] & 0xC0) >> 6
     if prefix == 0:
         return 1
     else:

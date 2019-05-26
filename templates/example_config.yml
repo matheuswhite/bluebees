@@ -1,0 +1,14 @@
+applications:
+  - street-light
+models:
+  - id: '1000' # generic onoff server
+    publication: '00ae'
+    subscription: ['0a32']
+    application: street-light
+  - id: '1002' # generic level server
+    publication: '00af'
+    subscription: ['0034', '0033']
+    application: street-light
+post_cmds:
+  - templates/commands/turn_on.yml
+  - templates/commands/set_threshold.yml
