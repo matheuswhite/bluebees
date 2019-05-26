@@ -22,7 +22,7 @@ def test_network_data():
         nodes.append(f'test_node{x}')
 
     data = NetworkData(name=name, key=key, key_index=key_index,
-                       iv_index=iv_index, seq=-1, apps=apps, nodes=nodes)
+                       iv_index=iv_index, apps=apps, nodes=nodes)
 
     assert file_helper.file_exist(base_dir + net_dir + name + '.yml') is \
         False
