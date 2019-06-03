@@ -150,7 +150,7 @@ class TransportLayer:
         expected_ack_bits = (2 ** (self.net_layer.hard_ctx.seg_n + 1)) - 1
         while True:
             self.log.debug(f'Waiting ack...')
-            ack_pdu, r_ctx = await self.net_layer.transport_pdus.get()
+            ack_pdu, r_ctx, seq_num = await self.net_layer.transport_pdus.get()
             self.log.debug(f'Got ack')
 
             # not same src and dst address (discard)
@@ -349,7 +349,7 @@ class TransportLayer:
         ack_counter = 0
         while len(seg_o_table) < self.net_layer.hard_ctx.seg_n:
             self.log.debug('Waiting segment')
-            pdu, r_ctx = await self.net_layer.transport_pdus.get()
+            pdu, r_ctx, seq_num = await self.net_layer.transport_pdus.get()
             self.log.debug(f'Got segment, pdu: {pdu.hex()}')
 
             seq_zero = (int.from_bytes(pdu[1:3], 'big') & 0x7ffc) >> 2
@@ -399,10 +399,11 @@ class TransportLayer:
 
     async def recv_pdu(self, segment_timeout: int,
                        soft_ctx: SoftContext) -> (bytes, SoftContext):
-        start_pdu, r_ctx = await self.net_layer.transport_pdus.get()
+        start_pdu, r_ctx, seq_num = await self.net_layer.transport_pdus.get()
 
         while self.net_layer.hard_ctx.is_ctrl_msg:
-            start_pdu, r_ctx = await self.net_layer.transport_pdus.get()
+            start_pdu, r_ctx, seq_num = \
+                await self.net_layer.transport_pdus.get()
 
         self.log.debug('Testing if is segmented...')
         if ((start_pdu[0] & 0x80) >> 7) == 0:
@@ -422,7 +423,7 @@ class TransportLayer:
             # decrypting pdu
             self.log.debug('Start decrypting...')
             access_pdu = self._decrypt_transport_pdu(
-                start_pdu[1:], r_ctx, self.net_layer.hard_ctx.seq)
+                start_pdu[1:], r_ctx, seq_num)
             self.log.debug('End decrypt')
             if not access_pdu:
                 return None, None
@@ -430,7 +431,7 @@ class TransportLayer:
             # segmented pdu
 
             # store the seq number of first segment
-            first_seq = self.net_layer.hard_ctx.seq
+            first_seq = seq_num
             self.log.debug(f'First seq: {hex(first_seq)}')
 
             # filling hard context
