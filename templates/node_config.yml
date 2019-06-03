@@ -11,5 +11,3 @@ models:
     application: street-light
 post_cmds:
   - templates/commands/turn_on.yml
-
-# 0033697e090210
