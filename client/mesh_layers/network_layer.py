@@ -216,4 +216,5 @@ class NetworkLayer:
             soft_ctx.network_name = net_data.name
 
             transport_pdu = decrypted_pdu[2:]
-            await self.transport_pdus.put((transport_pdu, soft_ctx))
+            await self.transport_pdus.put((transport_pdu, soft_ctx,
+                                           self.hard_ctx.seq))
