@@ -7,3 +7,6 @@ tests/.cache/*
 .bluebees/node/*
 .bluebees/app/*
 .bluebees/net/*
+bluebees.egg-info/*
+build/*
+dist/*

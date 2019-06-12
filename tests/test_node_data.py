@@ -1,6 +1,6 @@
-from common.file import file_helper
-from client.node.node_data import NodeData
-from client.data_paths import base_dir, node_dir
+from bluebees.common.file import file_helper
+from bluebees.client.node.node_data import NodeData
+from bluebees.client.data_paths import base_dir, node_dir
 from Crypto.Random import get_random_bytes
 import pathlib
 
