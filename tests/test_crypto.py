@@ -1,4 +1,4 @@
-from common.crypto import crypto
+from bluebees.common.crypto import crypto
 
 
 def test_s1():

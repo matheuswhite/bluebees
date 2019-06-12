@@ -1,6 +1,6 @@
-from common.file import file_helper
-from client.network.network_data import NetworkData
-from client.data_paths import base_dir, net_dir
+from bluebees.common.file import file_helper
+from bluebees.client.network.network_data import NetworkData
+from bluebees.client.data_paths import base_dir, net_dir
 from Crypto.Random import get_random_bytes
 import pathlib
 

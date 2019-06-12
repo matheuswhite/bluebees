@@ -1,7 +1,7 @@
 from ecdsa import NIST256p
 from ecdsa.ecdsa import Public_key, Private_key
 from ecdsa.ellipticcurve import Point
-from common.crypto import crypto
+from bluebees.common.crypto import crypto
 
 
 def product(priv, pub):

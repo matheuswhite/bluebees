@@ -1,6 +1,6 @@
-from common.file import file_helper
-from client.application.application_data import ApplicationData
-from client.data_paths import base_dir, app_dir
+from bluebees.common.file import file_helper
+from bluebees.client.application.application_data import ApplicationData
+from bluebees.client.data_paths import base_dir, app_dir
 from Crypto.Random import get_random_bytes
 import pathlib
 
