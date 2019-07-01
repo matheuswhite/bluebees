@@ -6,4 +6,4 @@
 [![codecov](https://codecov.io/gh/matheuswhite/bluebees/branch/master/graph/badge.svg)](https://codecov.io/gh/matheuswhite/bluebees)
 [![Maintainability](https://api.codeclimate.com/v1/badges/47e7df71e0d21bc5b1c4/maintainability)](https://codeclimate.com/github/matheuswhite/bluebees/maintainability)
 
-An app to help the usage of bluetooth mesh
+This tool has the purpose to help the provisioning and the configuration of Bluetooth mesh networks.
