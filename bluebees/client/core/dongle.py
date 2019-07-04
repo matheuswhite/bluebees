@@ -96,7 +96,11 @@ class Dongle(Client):
             data = await self.serial.read()
             line += data
             if b'\r\n' in line:
-                if line[0:1] != b'@':
+                if line[0:1] == b'*':
+                    self.ser_log.info(line.decode('utf-8'))
+                if line[0:1] == b'!':
+                    self.ser_log.warning(line[1:].decode('utf-8'))
+                elif line[0:1] != b'@':
                     line = b''
                     continue
 

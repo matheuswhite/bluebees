@@ -237,7 +237,7 @@ async def appkey_add(client_element: Element, target: str,
                           node_name=node_data.name,
                           network_name=node_data.network,
                           application_name='',
-                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+                          is_devkey=True, ack_timeout=3, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
                                                 parameters=parameters,
@@ -246,8 +246,8 @@ async def appkey_add(client_element: Element, target: str,
         return False
 
     r_content = await client_element.recv_message(opcode=r_opcode,
-                                                  segment_timeout=3,
-                                                  timeout=9, ctx=context)
+                                                  segment_timeout=1,
+                                                  timeout=3, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == key_index:
@@ -279,7 +279,7 @@ async def model_app_bind(client_element: Element, target: str, model_id: bytes,
                           node_name=node_data.name,
                           network_name=node_data.network,
                           application_name='',
-                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+                          is_devkey=True, ack_timeout=3, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
                                                 parameters=parameters,
@@ -288,8 +288,8 @@ async def model_app_bind(client_element: Element, target: str, model_id: bytes,
         return False
 
     r_content = await client_element.recv_message(opcode=r_opcode,
-                                                  segment_timeout=3,
-                                                  timeout=9, ctx=context)
+                                                  segment_timeout=1,
+                                                  timeout=3, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -319,7 +319,7 @@ async def model_publication_set(client_element: Element, target: str,
                           node_name=node_data.name,
                           network_name=node_data.network,
                           application_name='',
-                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+                          is_devkey=True, ack_timeout=3, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
                                                 parameters=parameters,
@@ -328,8 +328,8 @@ async def model_publication_set(client_element: Element, target: str,
         return False
 
     r_content = await client_element.recv_message(opcode=r_opcode,
-                                                  segment_timeout=3,
-                                                  timeout=9, ctx=context)
+                                                  segment_timeout=1,
+                                                  timeout=3, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -350,7 +350,7 @@ async def model_subscription_add(client_element: Element, target: str,
                           node_name=node_data.name,
                           network_name=node_data.network,
                           application_name='',
-                          is_devkey=True, ack_timeout=10, segment_timeout=3)
+                          is_devkey=True, ack_timeout=3, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
                                                 parameters=parameters,
@@ -359,8 +359,8 @@ async def model_subscription_add(client_element: Element, target: str,
         return False
 
     r_content = await client_element.recv_message(opcode=r_opcode,
-                                                  segment_timeout=3,
-                                                  timeout=9, ctx=context)
+                                                  segment_timeout=1,
+                                                  timeout=3, ctx=context)
 
     if r_content:
         if r_content[0] == 0 and r_content[1:] == parameters:
@@ -379,7 +379,7 @@ async def send_cmd(client_element: Element, target: str, opcode: bytes,
                           node_name=node_data.name,
                           network_name=node_data.network,
                           application_name=app_name,
-                          is_devkey=False, ack_timeout=10, segment_timeout=3)
+                          is_devkey=False, ack_timeout=3, segment_timeout=3)
 
     success = await client_element.send_message(opcode=opcode,
                                                 parameters=parameters,
