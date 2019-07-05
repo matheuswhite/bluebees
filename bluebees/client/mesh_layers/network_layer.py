@@ -13,7 +13,7 @@ import asyncio
 class NetworkLayer:
 
     def __init__(self, send_queue, recv_queue):
-        self.hard_ctx = HardContext(seq=0, ttl=7, is_ctrl_msg=True,
+        self.hard_ctx = HardContext(seq=0, ttl=2, is_ctrl_msg=True,
                                     seq_zero=0, seg_o=0, seg_n=0, szmic=0)
         self.send_queue = send_queue
         self.recv_queue = recv_queue
@@ -83,7 +83,7 @@ class NetworkLayer:
 
         ivi = ((int.from_bytes(net_data.iv_index, 'big') & 0x01) << 7)
         ctl = 0x80 if self.hard_ctx.is_ctrl_msg else 0x00
-        ttl = 0x07
+        ttl = 0x02
         seq = self.hard_ctx.seq
         src = soft_ctx.src_addr
 
