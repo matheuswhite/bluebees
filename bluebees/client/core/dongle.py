@@ -53,7 +53,7 @@ class Dongle(Client):
 
     async def reset_dongle(self):
         line = b''
-        expected_result = b'***** Booting Zephyr OS zephyr-v1.14.0 *****\r\n'
+        expected_result = b'***** BLE Mesh Dongle v1.0 *****\r\n'
         for x in range(3):
             self.ser_log.info('Trying reset dongle...')
             serial_msg = SerialMessage(msg_type=b'reset', xmit=b'0',
