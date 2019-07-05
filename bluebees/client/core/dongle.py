@@ -44,10 +44,37 @@ class Dongle(Client):
             b'prov': []
         }
 
+        self.loop.run_until_complete(self.reset_dongle())
+
         self.all_tasks += [self._read_serial_task(),
                            self._transport_message_task(),
                            self._write_serial_task(),
                            self._clear_caches_task()]
+
+    async def reset_dongle(self):
+        line = b''
+        expected_result = b'***** Booting Zephyr OS zephyr-v1.14.0 *****\r\n'
+        for x in range(3):
+            self.ser_log.info('Trying reset dongle...')
+            serial_msg = SerialMessage(msg_type=b'reset', xmit=b'0',
+                                       intms=b'00',
+                                       content_b64=b64.b64encode(b'none'),
+                                       address=None)
+            await self._write_on_serial(serial_msg)
+
+            # clear send message
+            data = await self.serial.read(22)
+
+            while True:
+                data = await self.serial.read()
+                line += data
+                if b'\r\n' in line:
+                    if line == expected_result:
+                        self.ser_log.success('Dongle resetted')
+                        return
+                    line = b''
+                    break
+        self.ser_log.warning('Give-up to reset dongle')
 
     async def _clear_caches_task(self):
         while True:
