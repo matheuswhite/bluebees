@@ -1,4 +1,4 @@
-# BlueeBees
+# BlueBees
 
 ![GitHub](https://img.shields.io/github/license/matheuswhite/bluebees.svg?style=popout)
 [![Build Status](https://travis-ci.org/matheuswhite/bluebees.svg?branch=master)](https://travis-ci.org/matheuswhite/bluebees)
