@@ -14,7 +14,7 @@ import asyncio
 
 def validate_name(ctx, param, value):
     if not value:
-        raise click.BadParameter('This option is required')
+        raise click.BadParameter('The option --name is required')
     if node_name_list() and value in node_name_list():
         raise click.BadParameter(f'The "{value}" node already exist')
     return value
@@ -22,7 +22,7 @@ def validate_name(ctx, param, value):
 
 def validate_network(ctx, param, value):
     if not value:
-        raise click.BadParameter('This option is required')
+        raise click.BadParameter('The option --network is required')
     if not net_name_list() or value not in net_name_list():
         raise click.BadParameter(f'The "{value}" network not exist')
     return value
@@ -30,7 +30,7 @@ def validate_network(ctx, param, value):
 
 def validate_uuid(ctx, param, value):
     if not value:
-        raise click.BadParameter('This option is required')
+        raise click.BadParameter('The option --uuid is required')
     if not check_hex_string(value):
         raise click.BadParameter('Bad formatting on uuid hex string')
     if len(value) % 2 == 1:
@@ -44,8 +44,13 @@ def validate_addr(ctx, param, value):
                                  'reached')
     if not check_hex_string(value):
         raise click.BadParameter('Bad formatting on address hex string')
-    if len(value) != 4:
+    if len(value) > 4:
         raise click.BadParameter('The length of node address is 2 bytes')
+    elif len(value) < 4:
+        tmp_value = ''
+        for x in range(4 - len(value)):
+            tmp_value += '0'
+        value = tmp_value + value
     if address_type(bytes.fromhex(value)) != UNICAST_ADDRESS:
         raise click.BadParameter('The address must be a unicast address')
     return value
@@ -61,7 +66,6 @@ def random_addr():
             return addr.hex()
 
     return None
-
 
 def provisioning_device(device_uuid: bytes, network: str,
                         addr: bytes, node_name: str, debug: bool):
@@ -119,75 +123,41 @@ def parse_template(ctx, param, value):
     try:
         name, name_is_seq = template_helper.get_field(template, 'name')
         validate_name(ctx, param, name)
+        template['name_is_seq'] = name_is_seq
     except KeyError:
-        raise click.BadParameter(f'Field "name" not found in template file '
-                                 f'"{value}"')
-    except click.BadParameter as bp:
-        if name_is_seq:
-            template_helper.update_sequence(template, 'name')
-        raise bp
+        name = None
 
     try:
-        network, net_is_seq = template_helper.get_field(template, 'network')
+        network, _ = template_helper.get_field(template, 'network')
         validate_network(ctx, param, network)
     except KeyError:
-        raise click.BadParameter(f'Field "network" not found in template file '
-                                 f'"{value}"')
-    except click.BadParameter as bp:
-        if net_is_seq:
-            template_helper.update_sequence(template, 'network')
-        raise bp
+        network = None
 
     try:
         uuid, _ = template_helper.get_field(template, 'uuid')
+        uuid = validate_uuid(ctx, param, address)
     except KeyError:
-        raise click.BadParameter(f'Field "uuid" not found in template file '
-                                 f'"{value}"')
+        uuid = None
 
     try:
-        address, _ = template_helper.get_field(template, 'address')
-        validate_addr(ctx, param, address)
+        address, addr_is_seq = template_helper.get_field(template, 'address', custom_pattern=template['name'])
+        address = validate_addr(ctx, param, address)
+        template['addr_is_seq'] = addr_is_seq
     except KeyError:
         address = random_addr()
 
-    address = bytes.fromhex(address)
-
-    if len(uuid) < 32:
-        uuid = bytes.fromhex(uuid) + bytes((32 - len(uuid)) // 2)
-    elif len(uuid) > 32:
-        uuid = bytes.fromhex(uuid)[0:16]
-    else:
-        uuid = bytes.fromhex(uuid)
-
-    # provisioning device
-    success, devkey = provisioning_device(uuid, network, address, name, False)
-    if not success:
-        click.echo(click.style('Error in provisioning', fg='red'))
-    else:
-        node_data = NodeData(name=name, addr=address, network=network,
-                             device_uuid=uuid, devkey=devkey)
-        node_data.save()
-
-        if name_is_seq:
-            template_helper.update_sequence(template, 'name')
-        if net_is_seq:
-            template_helper.update_sequence(template, 'network')
-
-        click.echo(click.style('A new node was created.', fg='green'))
-        click.echo(click.style(str(node_data), fg='green'))
-
-    ctx.exit()
+    return (name, network, address, uuid, template)
 
 
 @click.command()
 @click.option('--name', '-n', type=str, default='', required=True,
-              help='Specify the name of node', callback=validate_name)
+              help='Specify the name of node')
 @click.option('--network', '-w', type=str, default='', required=True,
-              help='Specify the name of network', callback=validate_network)
+              help='Specify the name of network')
 @click.option('--uuid', '-i', type=str, default='', required=True,
-              help='Specify the UUID of target device', callback=validate_uuid)
+              help='Specify the UUID of target device')
 @click.option('--address', '-a', type=str, default=random_addr(),
-              help='Specify the address of node', callback=validate_addr)
+              help='Specify the address of node')
 @click.option('--template', '-t', type=str, default='',
               help='Specify a YAML template file. A file example is shown in'
                    ' node_template.yml. This template file must contain the '
@@ -196,6 +166,23 @@ def parse_template(ctx, param, value):
 def new(name, network, address, uuid, template):
     '''Create a new node'''
 
+    if template:
+        if template[0]:
+            name = template[0]
+        if template[1]:
+            network = template[1]
+        if template[2]:
+            address = template[2]
+        if template[3]:
+            uuid = template[3]
+        if template[4]:
+            tmpl = template[4]
+
+    validate_name(None, None, name)
+    validate_network(None, None, network)
+    validate_addr(None, None, address)
+    validate_uuid(None, None, uuid)
+
     if len(uuid) < 32:
         uuid = bytes.fromhex(uuid) + bytes((32 - len(uuid)) // 2)
     elif len(uuid) > 32:
@@ -203,6 +190,7 @@ def new(name, network, address, uuid, template):
     else:
         uuid = bytes.fromhex(uuid)
 
+    print(f'address: {address}')
     address = bytes.fromhex(address)
 
     # provisioning device
@@ -210,6 +198,12 @@ def new(name, network, address, uuid, template):
     if not success:
         click.echo(click.style('Error in provisioning', fg='red'))
     else:
+        if tmpl['name_is_seq']:
+            template_helper.update_sequence(tmpl, 'name')
+
+        if tmpl['addr_is_seq']:
+            template_helper.update_sequence(tmpl, 'address', custom_pattern=tmpl['name'])
+
         node_data = NodeData(name=name, addr=address, network=network,
                              device_uuid=uuid, devkey=devkey)
         node_data.save()

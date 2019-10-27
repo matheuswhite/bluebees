@@ -40,13 +40,16 @@ class TemplateHelper:
                 break
         return field_value
 
-    def _change_sequence(self, field_value: str):
-        pattern = field_value
-        pattern = pattern.replace('\\s', '')
-        pattern = pattern.replace('\\S', '')
+    def _change_sequence(self, field_value: str, custom_pattern=None):
+        if not custom_pattern:
+            pattern = field_value
+            pattern = pattern.replace('\\s', '')
+            pattern = pattern.replace('\\S', '')
+        else:
+            pattern = custom_pattern
 
         if pattern not in self._sequences.keys():
-            self._sequences[pattern] = 0
+            self._sequences[pattern] = 1
 
         seq = self._sequences[pattern]
         field_value = field_value.replace('\\s', str(seq))
@@ -54,7 +57,7 @@ class TemplateHelper:
 
         return field_value
 
-    def update_sequence(self, template, field_name):
+    def update_sequence(self, template, field_name, custom_pattern=None):
         field_raw_value = template[field_name]
 
         if type(field_raw_value) != str:
@@ -62,9 +65,12 @@ class TemplateHelper:
 
         if re.findall(self._sequence_pattern, field_raw_value):
             try:
-                pattern = field_raw_value
-                pattern = pattern.replace('\\s', '')
-                pattern = pattern.replace('\\S', '')
+                if not custom_pattern:
+                    pattern = field_raw_value
+                    pattern = pattern.replace('\\s', '')
+                    pattern = pattern.replace('\\S', '')
+                else:
+                    pattern = custom_pattern
 
                 self._sequences[pattern] += 1
             except KeyError:
@@ -72,7 +78,7 @@ class TemplateHelper:
             finally:
                 file_helper.write(self._sequences_filename, self._sequences)
 
-    def get_field(self, template, field_name) -> (Any, bool):
+    def get_field(self, template, field_name, custom_pattern=None) -> (Any, bool):
         field_raw_value = template[field_name]
         field_value = field_raw_value
         is_seq = False
@@ -83,7 +89,7 @@ class TemplateHelper:
         if re.findall(self._random_pattern, field_raw_value):
             field_value = self._change_random(field_raw_value)
         elif re.findall(self._sequence_pattern, field_raw_value):
-            field_value = self._change_sequence(field_raw_value)
+            field_value = self._change_sequence(field_raw_value, custom_pattern)
             is_seq = True
         elif re.findall(r'\\', field_raw_value):
             raise Exception(f'Symbol unknown')
