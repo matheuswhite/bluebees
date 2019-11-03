@@ -1,7 +1,7 @@
 pycryptodome==3.7.3
 termcolor==1.1.0
 pyserial==3.4
-ecdsa==0.13
+ecdsa==0.13.3
 ruamel.yaml==0.15.94
 pyzmq==18.0.1
 asyncserial==0.1.0
