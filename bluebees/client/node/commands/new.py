@@ -166,6 +166,7 @@ def parse_template(ctx, param, value):
 def new(name, network, address, uuid, template):
     '''Create a new node'''
 
+    tmpl = None
     if template:
         if template[0]:
             name = template[0]
@@ -198,11 +199,12 @@ def new(name, network, address, uuid, template):
     if not success:
         click.echo(click.style('Error in provisioning', fg='red'))
     else:
-        if tmpl['name_is_seq']:
-            template_helper.update_sequence(tmpl, 'name')
+        if tmpl:
+            if tmpl['name_is_seq']:
+                template_helper.update_sequence(tmpl, 'name')
 
-        if tmpl['addr_is_seq']:
-            template_helper.update_sequence(tmpl, 'address', custom_pattern=tmpl['name'])
+            if tmpl['addr_is_seq']:
+                template_helper.update_sequence(tmpl, 'address', custom_pattern=tmpl['name'])
 
         node_data = NodeData(name=name, addr=address, network=network,
                              device_uuid=uuid, devkey=devkey)

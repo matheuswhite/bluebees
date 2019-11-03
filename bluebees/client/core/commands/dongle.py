@@ -15,7 +15,7 @@ from asyncserial import Serial
               help='The serial port of dongle', show_default=True)
 @click.option('--search-dongle', '-s', is_flag=True,
               help='Search automatically the dongle serial port')
-def run(baudrate, port, search_dongle):
+def dongle(baudrate, port, search_dongle):
     '''Run the main features of bluebees. This features are:
          - Dongle Communication
          - Internal Broker'''

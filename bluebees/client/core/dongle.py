@@ -142,7 +142,7 @@ class Dongle(Client):
             b'prov': []
         }
 
-        self.loop.run_until_complete(self._reset_dongle())
+        # self.loop.run_until_complete(self._reset_dongle())
 
         self.all_tasks += [self._read_serial_task(),
                            self._transport_message_task(),
