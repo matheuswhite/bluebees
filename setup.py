@@ -34,7 +34,7 @@ setup(
         "pyzmq==18.0.1",
         "asyncserial==0.1.0",
         "pytest==4.5.0",
-        "codecov==2.0.15",
+        "codecov==2.0.16",
         "pytest-cov==2.7.1",
         "click==7.0",
         "tqdm==4.32.1",
