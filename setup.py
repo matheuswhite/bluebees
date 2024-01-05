@@ -26,7 +26,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        "pycryptodome==3.7.3",
+        "pycryptodome==3.19.1",
         "termcolor==1.1.0",
         "pyserial==3.4",
         "ecdsa==0.13.3",
